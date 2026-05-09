@@ -8,6 +8,7 @@ const LINGXU_TEX: Texture2D = preload("res://assets/art/lingxu_panel.svg")
 const ELEMENT_TEX: Texture2D = preload("res://assets/ui/five_elements.svg")
 const BATTLE_TEX: Texture2D = preload("res://assets/art/battle_wound.svg")
 const ENEMY_TEX: Texture2D = preload("res://assets/art/enemy_shadow.svg")
+const BATTLE_ARENA_SCRIPT: Script = preload("res://scripts/battle_arena.gd")
 
 const ELEMENTS: Array[String] = ["金", "木", "水", "火", "土"]
 const REALMS: Array[String] = ["炼气", "筑基", "金丹", "元婴", "化神", "洞虚", "渡劫"]
@@ -175,15 +176,6 @@ const ACTIONS := {
 	}
 }
 
-const BATTLE_ACTIONS := {
-	"metal": {"name": "金 · 飞剑锐化", "element": "金", "power": 22.0, "qi": 16.0, "cooldown": 1.6, "heat": 4.0, "text": "高频穿透，连续使用会形成剑气锐化。"},
-	"wood": {"name": "木 · 灵种缠生", "element": "木", "power": 8.0, "qi": 14.0, "cooldown": 2.2, "heat": -3.0, "text": "种下灵种，持续修复道基并牵制敌方灵压。"},
-	"water": {"name": "水 · 回流观照", "element": "水", "power": 7.0, "qi": 12.0, "cooldown": 1.8, "heat": -6.0, "text": "梳理循环，压低灵压，并让下一次金系飞剑回流。"},
-	"fire": {"name": "火 · 焚气转化", "element": "火", "power": 34.0, "qi": 18.0, "cooldown": 2.8, "heat": 16.0, "text": "高爆发转化，若木种存在会引爆增殖。"},
-	"earth": {"name": "土 · 镇域守形", "element": "土", "power": 5.0, "qi": 15.0, "cooldown": 2.4, "heat": -4.0, "text": "临时建立领域，承载敌方灵压，保护道基。"},
-	"demon": {"name": "心魔借力", "element": "心魔", "power": 42.0, "qi": 0.0, "cooldown": 5.0, "heat": 22.0, "text": "以执念强行撕开敌方结构，代价直接进入心魔。"}
-}
-
 const ENCOUNTERS := [
 	{
 		"name": "浊灵残影",
@@ -255,20 +247,7 @@ var battle_logs: Array[String] = []
 var npc_states := {}
 var root_data := {}
 var battle_active := false
-var battle_turn := 1
-var battle_time := 0.0
 var battle_enemy := {}
-var enemy_structure := 0.0
-var enemy_max_structure := 0.0
-var enemy_pressure := 0.0
-var player_guard := 0.0
-var battle_heat := 0.0
-var battle_instability := 0.0
-var battle_resonance := 0.0
-var battle_stability_debt := 0.0
-var battle_qi := {}
-var battle_cooldowns := {}
-var battle_tags: Array[String] = []
 var battle_result_pending := false
 
 var create_screen: Control
@@ -307,18 +286,10 @@ var action_buttons := {}
 var breakthrough_button: Button
 var restart_button: Button
 var change_character_button: Button
-var battle_title: Label
-var battle_body: RichTextLabel
-var battle_enemy_label: Label
-var battle_enemy_bar: ProgressBar
-var battle_pressure_bar: ProgressBar
-var battle_player_bar: ProgressBar
-var battle_heat_bar: ProgressBar
-var battle_instability_bar: ProgressBar
 var battle_log_box: RichTextLabel
-var battle_buttons := {}
-var battle_qi_bars := {}
-var leave_battle_button: Button
+var battle_arena: Control
+var battle_status_label: RichTextLabel
+var battle_exit_button: Button
 
 
 func _ready() -> void:
@@ -328,8 +299,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if battle_active:
-		_tick_battle(delta)
+	pass
 
 
 func _build_ui() -> void:
@@ -688,11 +658,6 @@ func _build_battle_screen() -> Control:
 	var screen := HBoxContainer.new()
 	screen.add_theme_constant_override("separation", 12)
 
-	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(330, 0)
-	left.add_theme_constant_override("separation", 10)
-	screen.add_child(left)
-
 	var center := VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -700,78 +665,40 @@ func _build_battle_screen() -> Control:
 	screen.add_child(center)
 
 	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(330, 0)
+	right.custom_minimum_size = Vector2(310, 0)
 	right.add_theme_constant_override("separation", 10)
 	screen.add_child(right)
 
-	var enemy_panel := _make_panel("敌方灵气结构", true)
-	left.add_child(enemy_panel)
-	var enemy_body := _panel_body(enemy_panel)
-	var enemy_art := TextureRect.new()
-	enemy_art.texture = ENEMY_TEX
-	enemy_art.custom_minimum_size = Vector2(0, 230)
-	enemy_art.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
-	enemy_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	enemy_body.add_child(enemy_art)
-	battle_enemy_label = Label.new()
-	battle_enemy_label.add_theme_font_size_override("font_size", 20)
-	battle_enemy_label.add_theme_color_override("font_color", Color(0.94, 0.82, 0.64))
-	battle_enemy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	enemy_body.add_child(battle_enemy_label)
-	battle_enemy_bar = _make_labeled_bar(enemy_body, "结构")
-	battle_pressure_bar = _make_labeled_bar(enemy_body, "灵压")
-	battle_instability_bar = _make_labeled_bar(enemy_body, "裂隙")
-
-	var field_panel := _make_panel("灵墟战场", true)
+	var field_panel := _make_panel("灵墟战斗房间", true)
 	field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.add_child(field_panel)
 	var field_body := _panel_body(field_panel)
-	var field_art := TextureRect.new()
-	field_art.texture = BATTLE_TEX
-	field_art.custom_minimum_size = Vector2(0, 220)
-	field_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	field_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	field_body.add_child(field_art)
-	battle_title = Label.new()
-	battle_title.add_theme_font_size_override("font_size", 24)
-	battle_title.add_theme_color_override("font_color", Color(0.94, 0.86, 0.64))
-	field_body.add_child(battle_title)
-	battle_body = RichTextLabel.new()
-	battle_body.bbcode_enabled = true
-	battle_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	battle_body.scroll_active = true
-	field_body.add_child(battle_body)
+	battle_arena = Control.new()
+	battle_arena.custom_minimum_size = Vector2(920, 540)
+	battle_arena.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_arena.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_arena.set_script(BATTLE_ARENA_SCRIPT)
+	battle_arena.battle_finished.connect(_on_arena_battle_finished)
+	field_body.add_child(battle_arena)
 
-	var action_grid := GridContainer.new()
-	action_grid.columns = 2
-	action_grid.add_theme_constant_override("h_separation", 8)
-	action_grid.add_theme_constant_override("v_separation", 8)
-	field_body.add_child(action_grid)
-	for action_id in ["metal", "wood", "water", "fire", "earth", "demon"]:
-		var button := _make_button(BATTLE_ACTIONS[action_id].name)
-		button.custom_minimum_size = Vector2(0, 42)
-		button.pressed.connect(func() -> void: _battle_action(action_id))
-		action_grid.add_child(button)
-		battle_buttons[action_id] = button
+	var guide_panel := _make_panel("操作", false)
+	right.add_child(guide_panel)
+	var guide := RichTextLabel.new()
+	guide.bbcode_enabled = true
+	guide.fit_content = true
+	guide.scroll_active = false
+	guide.text = "[b]动作战斗[/b]\nWASD 移动\n空格 闪避\n左键 近身斩击\n右键 飞剑\nQ 切换五行\nE 释放当前五行术式\nR 心魔借力\n\n战斗不再由按钮结算。敌人会追击、触体、释放浊灵弹幕；五行灵气按灵根持续恢复。"
+	_panel_body(guide_panel).add_child(guide)
 
-	leave_battle_button = _make_button("脱离战场")
-	leave_battle_button.pressed.connect(_flee_battle)
-	field_body.add_child(leave_battle_button)
+	battle_status_label = RichTextLabel.new()
+	battle_status_label.bbcode_enabled = true
+	battle_status_label.fit_content = true
+	battle_status_label.scroll_active = false
+	_panel_body(guide_panel).add_child(battle_status_label)
 
-	var player_panel := _make_panel("自身道基", false)
-	right.add_child(player_panel)
-	var player_body := _panel_body(player_panel)
-	battle_player_bar = _make_labeled_bar(player_body, "稳定")
-	battle_heat_bar = _make_labeled_bar(player_body, "失衡")
-	for element in ELEMENTS:
-		var qi_bar := _make_labeled_bar(player_body, element)
-		battle_qi_bars[element] = qi_bar
-	var hint := RichTextLabel.new()
-	hint.bbcode_enabled = true
-	hint.fit_content = true
-	hint.scroll_active = false
-	hint.text = "[b]战斗原则[/b]\n战场实时推进。灵气按灵根持续流入五行池，敌方灵压持续压迫道基。\n\n按术式按钮消耗对应灵气；连续同系、相生组合和心魔借力都会改变战局与代价。"
-	player_body.add_child(hint)
+	battle_exit_button = _make_button("强行脱离")
+	battle_exit_button.pressed.connect(_force_exit_arena)
+	_panel_body(guide_panel).add_child(battle_exit_button)
 
 	var log_panel := _make_panel("战斗残响", true)
 	log_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -782,31 +709,6 @@ func _build_battle_screen() -> Control:
 	battle_log_box.scroll_active = true
 	_panel_body(log_panel).add_child(battle_log_box)
 	return screen
-
-
-func _make_labeled_bar(parent: VBoxContainer, label_text: String) -> ProgressBar:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	parent.add_child(row)
-	var label := Label.new()
-	label.text = label_text
-	label.custom_minimum_size = Vector2(54, 0)
-	label.add_theme_color_override("font_color", Color(0.7, 0.76, 0.74))
-	row.add_child(label)
-	var bar := _make_bar(label_text)
-	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(bar)
-	return bar
-
-
-func _make_bar(_label_text: String) -> ProgressBar:
-	var bar := ProgressBar.new()
-	bar.tooltip_text = _label_text
-	bar.min_value = 0
-	bar.max_value = 100
-	bar.show_percentage = true
-	bar.custom_minimum_size = Vector2(0, 24)
-	return bar
 
 
 func _add_form_row(grid: GridContainer, label_text: String, input: Control) -> void:
@@ -1223,266 +1125,64 @@ func _action_demon() -> void:
 
 
 func _start_battle() -> void:
+	battle_enemy = ENCOUNTERS[rng.randi_range(0, ENCOUNTERS.size() - 1)].duplicate(true)
 	battle_active = true
-	battle_turn = 1
-	battle_time = 0.0
 	battle_result_pending = false
 	battle_logs.clear()
-	battle_enemy = ENCOUNTERS[rng.randi_range(0, ENCOUNTERS.size() - 1)].duplicate(true)
-	enemy_max_structure = float(battle_enemy.hp) + float(realm_index * 14)
-	enemy_structure = enemy_max_structure
-	enemy_pressure = float(battle_enemy.pressure) + float(realm_index * 4) + float(pollution * 0.08)
-	player_guard = 0.0
-	battle_heat = float(risk) * 0.15
-	battle_instability = 0.0
-	battle_resonance = 0.0
-	battle_stability_debt = 0.0
-	battle_tags.clear()
-	battle_qi.clear()
-	battle_cooldowns.clear()
-	for element in ELEMENTS:
-		battle_qi[element] = 18.0 + float(root_data.elements.get(element, 0)) * 0.18
-	for action_id in BATTLE_ACTIONS.keys():
-		battle_cooldowns[action_id] = 0.0
-	for button in battle_buttons.values():
-		button.disabled = false
-	leave_battle_button.text = "脱离战场"
-	leave_battle_button.disabled = false
-	_add_battle_log("遭遇%s。%s" % [battle_enemy.name, battle_enemy.text])
 	_show_battle()
-	_update_battle_ui()
+	battle_status_label.text = "[b]%s[/b]\n%s\n\n构筑：%s" % [battle_enemy.name, battle_enemy.text, _get_effective_build()]
+	battle_log_box.text = "进入灵墟战斗房间。"
+	var payload := {
+		"enemy": battle_enemy,
+		"realm_index": realm_index,
+		"pollution": pollution,
+		"risk": risk,
+		"stability": stability,
+		"heart_demon": heart_demon,
+		"elements": root_data.elements,
+	}
+	battle_arena.call("start_battle", payload)
 
 
-func _battle_action(action_id: String) -> void:
-	if not battle_active:
-		return
-	var action: Dictionary = BATTLE_ACTIONS[action_id]
-	var element: String = action.element
-	if float(battle_cooldowns.get(action_id, 0.0)) > 0.0:
-		_add_battle_log("%s尚未回转。" % action.name)
-		return
-	if element != "心魔" and float(battle_qi.get(element, 0.0)) < float(action.qi):
-		_add_battle_log("%s不足，%s无法成式。" % [element, action.name])
-		return
-	if element != "心魔":
-		battle_qi[element] = float(battle_qi[element]) - float(action.qi)
-	var affinity: int = _element_affinity(element)
-	var damage: float = float(action.power) + float(affinity) * 0.12 + float(insight) * 0.08
-	if element == String(battle_enemy.weak):
-		damage *= 1.35
-		battle_resonance += 6.0
-		_add_battle_log("%s击中弱点，敌方灵气结构松动。" % action.name)
-	elif element == String(battle_enemy.resist):
-		damage *= 0.62
-		_add_battle_log("%s被敌方灵性抵消。" % action.name)
-	else:
-		_add_battle_log("施展%s。" % action.name)
-
-	damage = _apply_battle_synergy(action_id, element, damage)
-
-	match action_id:
-		"wood":
-			stability += 2
-			enemy_pressure -= 4.0
-			_add_battle_tag("灵种")
-		"water":
-			enemy_pressure -= 8.0
-			battle_heat = max(0.0, battle_heat - 8.0)
-			_add_battle_tag("回流")
-		"fire":
-			pollution += 1
-			heart_demon += 1
-			battle_heat += 12.0
-		"earth":
-			player_guard += 22.0
-			stability += 1
-			_add_battle_tag("镇域")
-		"demon":
-			heart_demon += 6
-			karma += 2
-			battle_heat += 18.0
-			_add_state("战中借魔")
-
-	enemy_structure -= max(1.0, damage)
-	battle_heat += float(action.heat)
-	battle_instability += max(0.0, battle_heat - 70.0) * 0.04
-	battle_cooldowns[action_id] = float(action.cooldown)
-	enemy_pressure = clamp(enemy_pressure, 0.0, 100.0)
-	_add_battle_log("造成%d点结构破坏。" % int(max(1.0, damage)))
-
-	if enemy_structure <= 0.0:
-		_finish_battle(true)
-		return
-
-	_clamp_core()
-	_update_battle_ui()
-
-
-func _tick_battle(delta: float) -> void:
-	battle_time += delta
-	var scaled_delta := delta
-	for element in ELEMENTS:
-		var affinity := float(root_data.elements.get(element, 0))
-		var flow := 4.0 + affinity * 0.045 + float(insight) * 0.01
-		battle_qi[element] = clamp(float(battle_qi.get(element, 0.0)) + flow * scaled_delta, 0.0, 100.0)
-	for action_id in battle_cooldowns.keys():
-		battle_cooldowns[action_id] = max(0.0, float(battle_cooldowns[action_id]) - scaled_delta)
-
-	var pressure_growth: float = (2.0 + float(realm_index) * 0.35 + float(pollution) * 0.012) * scaled_delta
-	enemy_pressure = clamp(enemy_pressure + pressure_growth, 0.0, 100.0)
-	var guard_absorb: float = player_guard * 0.45
-	var pressure_damage: float = max(0.0, enemy_pressure - guard_absorb) * 0.035 * scaled_delta
-	var heat_damage: float = max(0.0, battle_heat - 65.0) * 0.018 * scaled_delta
-	battle_stability_debt += (pressure_damage + heat_damage) * 10.0
-	if battle_stability_debt >= 1.0:
-		var loss: int = int(battle_stability_debt)
-		stability -= loss
-		battle_stability_debt -= float(loss)
-	battle_instability += (pressure_damage + heat_damage) * 5.0
-	player_guard = max(0.0, player_guard - 10.0 * scaled_delta)
-	battle_heat = max(0.0, battle_heat - (3.0 + float(stability) * 0.02) * scaled_delta)
-	if battle_time >= float(battle_turn) * 4.0:
-		battle_turn += 1
-		heaven_correction += 1
-		if battle_instability > 45.0:
-			pollution += 1
-		_add_battle_log("%s灵压继续逼近，道基承压。" % battle_enemy.name)
-	if battle_instability >= 100.0 or stability <= 0:
-		_finish_battle(false)
-		return
-	_clamp_core()
-	_update_battle_ui()
-
-
-func _apply_battle_synergy(action_id: String, element: String, damage: float) -> float:
-	if action_id == "fire" and battle_tags.has("灵种"):
-		damage *= 1.45
-		battle_tags.erase("灵种")
-		_add_battle_log("木火相燃，灵种爆裂。")
-	if action_id == "metal" and battle_tags.has("回流"):
-		damage *= 1.28
-		battle_tags.erase("回流")
-		_add_battle_log("金水回流，剑气二次贯穿。")
-	if action_id == "earth" and battle_tags.has("回流"):
-		player_guard += 10.0
-		battle_tags.erase("回流")
-		_add_battle_log("水土成域，战场流速变慢。")
-	if element != "心魔" and battle_tags.has(element):
-		damage *= 1.12
-	return damage
-
-
-func _add_battle_tag(tag: String) -> void:
-	if not battle_tags.has(tag):
-		battle_tags.append(tag)
-
-
-func _finish_battle(victory: bool) -> void:
+func _on_arena_battle_finished(victory: bool, result: Dictionary) -> void:
 	if battle_result_pending:
 		return
 	battle_result_pending = true
 	battle_active = false
-	for button in battle_buttons.values():
-		button.disabled = true
-	leave_battle_button.text = "回到修道"
-	leave_battle_button.disabled = false
+	pollution += int(result.get("pollution", 0))
+	heart_demon += int(result.get("heart", 0))
+	karma += int(result.get("karma", 0))
+	cultivation += int(result.get("cultivation", 0))
+	stability -= int(result.get("stability_loss", 0))
 	if victory:
-		var reward: String = battle_enemy.reward
+		var reward := String(result.get("reward", "灵气残屑"))
 		if not relics.has(reward):
 			relics.append(reward)
-		cultivation += rng.randi_range(12, 22)
-		insight += rng.randi_range(2, 6)
-		karma += rng.randi_range(4, 9)
-		heaven_correction += rng.randi_range(3, 7)
-		_add_state("战胜%s" % battle_enemy.name)
-		_add_log("打碎%s的灵气结构，取得%s。" % [battle_enemy.name, reward])
-		_add_battle_log("敌方灵气结构崩解，因果回流。战斗耗时%.1f息。" % battle_time)
+		insight += rng.randi_range(2, 5)
+		heaven_correction += rng.randi_range(2, 5)
+		_add_state("战胜%s" % result.get("enemy", "灵墟敌影"))
+		_add_log("在动作战斗中击破%s，取得%s。" % [result.get("enemy", "灵墟敌影"), reward])
+		battle_log_box.text = "战斗胜利。耗时 %.1f 息。\n回到修道后，因果与污染已经写入本轮。" % float(result.get("time", 0.0))
 	else:
-		stability -= rng.randi_range(8, 15)
-		pollution += rng.randi_range(6, 12)
-		heart_demon += rng.randi_range(5, 10)
+		stability -= rng.randi_range(8, 14)
+		pollution += rng.randi_range(4, 9)
+		heart_demon += rng.randi_range(3, 8)
 		_add_state("败退残伤")
-		_add_log("从%s手中败退，道基留下暗伤。" % battle_enemy.name)
-		_add_battle_log("你强行斩断战场因果，带伤脱离。")
+		_add_log("在动作战斗中败退，道基留下暗伤。")
+		battle_log_box.text = "战斗失败。你被迫斩断战场因果，污染和心魔回流。"
 	_advance_world()
 	turn += 1
 	_clamp_core()
-	_update_battle_ui()
+	battle_status_label.text = "[b]战斗已结算[/b]\n污染 %d / 因果 %d / 心魔 %d / 稳定 %d" % [pollution, karma, heart_demon, stability]
 
 
-func _flee_battle() -> void:
+func _force_exit_arena() -> void:
 	if battle_active:
-		_finish_battle(false)
+		battle_arena.call("force_finish", false)
 		return
-	for button in battle_buttons.values():
-		button.disabled = false
-	leave_battle_button.text = "脱离战场"
-	battle_result_pending = false
 	_show_game()
 	_present_turn()
 
-
-func _element_affinity(element: String) -> int:
-	if element == "心魔":
-		return heart_demon + int(character_obsession.get("heart", 0))
-	if root_data.is_empty():
-		return 0
-	return int(root_data.elements.get(element, 0))
-
-
-func _add_battle_log(line: String) -> void:
-	battle_logs.push_front("战斗%d：%s" % [battle_turn, line])
-	if battle_logs.size() > MAX_LOG_LINES:
-		battle_logs.resize(MAX_LOG_LINES)
-
-
-func _update_battle_ui() -> void:
-	battle_title.text = "%.1f息：%s" % [battle_time, battle_enemy.name]
-	battle_enemy_label.text = "%s · %s\n主性：%s / 弱点：%s / 抗性：%s" % [
-		battle_enemy.name,
-		battle_enemy.realm,
-		battle_enemy.element,
-		battle_enemy.weak,
-		battle_enemy.resist
-	]
-	battle_enemy_bar.max_value = enemy_max_structure
-	battle_enemy_bar.value = clamp(enemy_structure, 0.0, enemy_max_structure)
-	battle_pressure_bar.max_value = 100
-	battle_pressure_bar.value = clamp(enemy_pressure, 0.0, 100.0)
-	battle_instability_bar.max_value = 100
-	battle_instability_bar.value = clamp(battle_instability, 0.0, 100.0)
-	battle_player_bar.max_value = 100
-	battle_player_bar.value = clamp(stability, 0, 100)
-	battle_heat_bar.max_value = 100
-	battle_heat_bar.value = clamp(battle_heat, 0.0, 100.0)
-	for element in ELEMENTS:
-		var bar: ProgressBar = battle_qi_bars[element]
-		bar.max_value = 100
-		bar.value = clamp(float(battle_qi.get(element, 0.0)), 0.0, 100.0)
-	for action_id in battle_buttons.keys():
-		var button: Button = battle_buttons[action_id]
-		var action: Dictionary = BATTLE_ACTIONS[action_id]
-		var ready: bool = float(battle_cooldowns.get(action_id, 0.0)) <= 0.0
-		var enough_qi: bool = action.element == "心魔" or float(battle_qi.get(action.element, 0.0)) >= float(action.qi)
-		button.disabled = battle_result_pending or not battle_active or not ready or not enough_qi
-		if not ready:
-			button.text = "%s %.1f" % [action.name, float(battle_cooldowns[action_id])]
-		else:
-			button.text = action.name
-	battle_body.text = "[b]战场判断[/b]\n%s\n\n[b]自身构筑[/b]\n%s\n五行：%s\n\n[b]战斗状态[/b]\n守势 %.0f / 热度 %.0f / 裂隙 %.0f\n标记：%s\n\n[b]当前代价[/b]\n污染%d / 因果%d / 心魔%d / 天道修正%d\n\n[b]操作提示[/b]\n灵气自动流入五行池。木火、金水、水土会产生联动；高热度会撕裂道基，心魔借力会把代价带回现实。" % [
-		battle_enemy.text,
-		_get_effective_build(),
-		_format_elements(),
-		player_guard,
-		battle_heat,
-		battle_instability,
-		"、".join(battle_tags) if not battle_tags.is_empty() else "无",
-		pollution,
-		karma,
-		heart_demon,
-		heaven_correction
-	]
-	battle_log_box.text = "\n".join(battle_logs) if not battle_logs.is_empty() else "战斗尚未留下残响。"
 
 
 func _attempt_breakthrough() -> void:
