@@ -1,11 +1,13 @@
 extends Control
 
-enum ScreenState { CREATE, PROFILE, GAME }
+enum ScreenState { CREATE, PROFILE, GAME, BATTLE }
 
 const BG_TEX: Texture2D = preload("res://assets/art/dao_background.svg")
 const CULTIVATOR_TEX: Texture2D = preload("res://assets/art/cultivator_silhouette.svg")
 const LINGXU_TEX: Texture2D = preload("res://assets/art/lingxu_panel.svg")
 const ELEMENT_TEX: Texture2D = preload("res://assets/ui/five_elements.svg")
+const BATTLE_TEX: Texture2D = preload("res://assets/art/battle_wound.svg")
+const ENEMY_TEX: Texture2D = preload("res://assets/art/enemy_shadow.svg")
 
 const ELEMENTS: Array[String] = ["金", "木", "水", "火", "土"]
 const REALMS: Array[String] = ["炼气", "筑基", "金丹", "元婴", "化神", "洞虚", "渡劫"]
@@ -165,8 +167,58 @@ const ACTIONS := {
 		"title": "观照心魔",
 		"desc": "压制或利用心魔。短期可能获益，长期会改变修道者的自我边界。",
 		"button": "心魔"
+	},
+	"battle": {
+		"title": "灵压遭遇",
+		"desc": "进入构筑战斗。以五行联动和代价管理破开敌人的灵气结构。",
+		"button": "遭遇"
 	}
 }
+
+const BATTLE_ACTIONS := {
+	"metal": {"name": "金 · 飞剑锐化", "element": "金", "power": 20, "cost": 4, "risk": 3, "text": "高频穿透，适合破开灵壳。"},
+	"wood": {"name": "木 · 灵种缠生", "element": "木", "power": 14, "cost": -3, "risk": 2, "text": "恢复道基并累积牵制。"},
+	"water": {"name": "水 · 回流观照", "element": "水", "power": 12, "cost": 0, "risk": 1, "text": "降低敌方灵压，梳理自身循环。"},
+	"fire": {"name": "火 · 焚气转化", "element": "火", "power": 26, "cost": 8, "risk": 8, "text": "爆发极高，明显推高心魔与污染。"},
+	"earth": {"name": "土 · 镇域守形", "element": "土", "power": 10, "cost": -6, "risk": 1, "text": "稳定道基，压低本回合承伤。"},
+	"demon": {"name": "心魔借力", "element": "心魔", "power": 34, "cost": 12, "risk": 14, "text": "以执念换强行破局，代价会带回现实。"}
+}
+
+const ENCOUNTERS := [
+	{
+		"name": "浊灵残影",
+		"realm": "炼气后期",
+		"hp": 88,
+		"pressure": 18,
+		"element": "水",
+		"weak": "土",
+		"resist": "火",
+		"reward": "浊灵残气",
+		"text": "灵墟边缘的死亡残响，仍按旧日周天巡行。"
+	},
+	{
+		"name": "失控剑傀",
+		"realm": "筑基残壳",
+		"hp": 110,
+		"pressure": 24,
+		"element": "金",
+		"weak": "火",
+		"resist": "木",
+		"reward": "断剑灵纹",
+		"text": "古宗剑阵留下的法宝残肢，只记得切割与秩序。"
+	},
+	{
+		"name": "心魔镜身",
+		"realm": "因果异象",
+		"hp": 96,
+		"pressure": 28,
+		"element": "心魔",
+		"weak": "水",
+		"resist": "金",
+		"reward": "镜心裂痕",
+		"text": "它借你的记忆成形，招式越像你，越难斩净。"
+	}
+]
 
 var rng := RandomNumberGenerator.new()
 var current_screen: ScreenState = ScreenState.CREATE
@@ -199,12 +251,22 @@ var life_resonance := 0
 var relics: Array[String] = []
 var states: Array[String] = []
 var logs: Array[String] = []
+var battle_logs: Array[String] = []
 var npc_states := {}
 var root_data := {}
+var battle_active := false
+var battle_turn := 1
+var battle_enemy := {}
+var enemy_hp := 0
+var enemy_max_hp := 0
+var enemy_pressure := 0
+var player_guard := 0
+var battle_resonance := 0
 
 var create_screen: Control
 var profile_screen: Control
 var game_screen: Control
+var battle_screen: Control
 var name_edit: LineEdit
 var gender_select: OptionButton
 var origin_select: OptionButton
@@ -237,6 +299,15 @@ var action_buttons := {}
 var breakthrough_button: Button
 var restart_button: Button
 var change_character_button: Button
+var battle_title: Label
+var battle_body: RichTextLabel
+var battle_enemy_label: Label
+var battle_enemy_bar: ProgressBar
+var battle_pressure_bar: ProgressBar
+var battle_player_bar: ProgressBar
+var battle_log_box: RichTextLabel
+var battle_buttons := {}
+var leave_battle_button: Button
 
 
 func _ready() -> void:
@@ -280,7 +351,8 @@ func _build_ui() -> void:
 	create_screen = _build_create_screen()
 	profile_screen = _build_profile_screen()
 	game_screen = _build_game_screen()
-	for screen in [create_screen, profile_screen, game_screen]:
+	battle_screen = _build_battle_screen()
+	for screen in [create_screen, profile_screen, game_screen, battle_screen]:
 		screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 		content_stack.add_child(screen)
 
@@ -553,7 +625,7 @@ func _build_game_screen() -> Control:
 	action_grid.add_theme_constant_override("h_separation", 8)
 	action_grid.add_theme_constant_override("v_separation", 8)
 	event_content.add_child(action_grid)
-	for action_id in ["cultivate", "sect", "ruin", "demon"]:
+	for action_id in ["cultivate", "sect", "ruin", "demon", "battle"]:
 		var button := _make_button(ACTIONS[action_id].button)
 		button.custom_minimum_size = Vector2(0, 44)
 		button.pressed.connect(func() -> void: _take_action(action_id))
@@ -594,6 +666,113 @@ func _build_game_screen() -> Control:
 	log_box.scroll_active = true
 	_panel_body(log_panel).add_child(log_box)
 	return screen
+
+
+func _build_battle_screen() -> Control:
+	var screen := HBoxContainer.new()
+	screen.add_theme_constant_override("separation", 12)
+
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(330, 0)
+	left.add_theme_constant_override("separation", 10)
+	screen.add_child(left)
+
+	var center := VBoxContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center.add_theme_constant_override("separation", 10)
+	screen.add_child(center)
+
+	var right := VBoxContainer.new()
+	right.custom_minimum_size = Vector2(330, 0)
+	right.add_theme_constant_override("separation", 10)
+	screen.add_child(right)
+
+	var enemy_panel := _make_panel("敌方灵气结构", true)
+	left.add_child(enemy_panel)
+	var enemy_body := _panel_body(enemy_panel)
+	var enemy_art := TextureRect.new()
+	enemy_art.texture = ENEMY_TEX
+	enemy_art.custom_minimum_size = Vector2(0, 230)
+	enemy_art.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
+	enemy_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	enemy_body.add_child(enemy_art)
+	battle_enemy_label = Label.new()
+	battle_enemy_label.add_theme_font_size_override("font_size", 20)
+	battle_enemy_label.add_theme_color_override("font_color", Color(0.94, 0.82, 0.64))
+	battle_enemy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	enemy_body.add_child(battle_enemy_label)
+	battle_enemy_bar = _make_bar("形体")
+	enemy_body.add_child(battle_enemy_bar)
+	battle_pressure_bar = _make_bar("灵压")
+	enemy_body.add_child(battle_pressure_bar)
+
+	var field_panel := _make_panel("灵墟战场", true)
+	field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center.add_child(field_panel)
+	var field_body := _panel_body(field_panel)
+	var field_art := TextureRect.new()
+	field_art.texture = BATTLE_TEX
+	field_art.custom_minimum_size = Vector2(0, 220)
+	field_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	field_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	field_body.add_child(field_art)
+	battle_title = Label.new()
+	battle_title.add_theme_font_size_override("font_size", 24)
+	battle_title.add_theme_color_override("font_color", Color(0.94, 0.86, 0.64))
+	field_body.add_child(battle_title)
+	battle_body = RichTextLabel.new()
+	battle_body.bbcode_enabled = true
+	battle_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_body.scroll_active = true
+	field_body.add_child(battle_body)
+
+	var action_grid := GridContainer.new()
+	action_grid.columns = 2
+	action_grid.add_theme_constant_override("h_separation", 8)
+	action_grid.add_theme_constant_override("v_separation", 8)
+	field_body.add_child(action_grid)
+	for action_id in ["metal", "wood", "water", "fire", "earth", "demon"]:
+		var button := _make_button(BATTLE_ACTIONS[action_id].name)
+		button.custom_minimum_size = Vector2(0, 42)
+		button.pressed.connect(func() -> void: _battle_action(action_id))
+		action_grid.add_child(button)
+		battle_buttons[action_id] = button
+
+	leave_battle_button = _make_button("脱离战场")
+	leave_battle_button.pressed.connect(_flee_battle)
+	field_body.add_child(leave_battle_button)
+
+	var player_panel := _make_panel("自身道基", false)
+	right.add_child(player_panel)
+	var player_body := _panel_body(player_panel)
+	battle_player_bar = _make_bar("稳定")
+	player_body.add_child(battle_player_bar)
+	var hint := RichTextLabel.new()
+	hint.bbcode_enabled = true
+	hint.fit_content = true
+	hint.scroll_active = false
+	hint.text = "[b]战斗原则[/b]\n不是技能循环，而是构筑是否成立。\n\n弱点会提高破坏，抗性会降低效果；每次出手都会牵动污染、心魔或道基。"
+	player_body.add_child(hint)
+
+	var log_panel := _make_panel("战斗残响", true)
+	log_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(log_panel)
+	battle_log_box = RichTextLabel.new()
+	battle_log_box.bbcode_enabled = true
+	battle_log_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_log_box.scroll_active = true
+	_panel_body(log_panel).add_child(battle_log_box)
+	return screen
+
+
+func _make_bar(_label_text: String) -> ProgressBar:
+	var bar := ProgressBar.new()
+	bar.min_value = 0
+	bar.max_value = 100
+	bar.show_percentage = true
+	bar.custom_minimum_size = Vector2(0, 24)
+	return bar
 
 
 func _add_form_row(grid: GridContainer, label_text: String, input: Control) -> void:
@@ -707,10 +886,17 @@ func _show_game() -> void:
 	_set_screen_visibility()
 
 
+func _show_battle() -> void:
+	current_screen = ScreenState.BATTLE
+	subtitle_label.text = "残道时代 · 构筑战斗"
+	_set_screen_visibility()
+
+
 func _set_screen_visibility() -> void:
 	create_screen.visible = current_screen == ScreenState.CREATE
 	profile_screen.visible = current_screen == ScreenState.PROFILE
 	game_screen.visible = current_screen == ScreenState.GAME
+	battle_screen.visible = current_screen == ScreenState.BATTLE
 
 
 func _refresh_create_preview() -> void:
@@ -896,7 +1082,7 @@ func _compose_turn_text() -> String:
 	text += "- 污染、因果、心魔与天道修正越高，突破越危险。\n"
 	text += "- 稳定降低到0，修炼体系会崩坏。\n\n"
 	text += "[b]可选行动[/b]\n"
-	for action_id in ["cultivate", "sect", "ruin", "demon"]:
+	for action_id in ["cultivate", "sect", "ruin", "demon", "battle"]:
 		text += "- %s：%s\n" % [ACTIONS[action_id].title, ACTIONS[action_id].desc]
 	return text
 
@@ -913,6 +1099,9 @@ func _take_action(action_id: String) -> void:
 			_action_ruin()
 		"demon":
 			_action_demon()
+		"battle":
+			_start_battle()
+			return
 	_advance_world()
 	turn += 1
 	_present_turn()
@@ -997,6 +1186,175 @@ func _action_demon() -> void:
 		_add_log("心魔模拟故人记忆，道心出现裂纹。")
 	heaven_correction += rng.randi_range(2, 6)
 	_clamp_core()
+
+
+func _start_battle() -> void:
+	battle_active = true
+	battle_turn = 1
+	battle_logs.clear()
+	battle_enemy = ENCOUNTERS[rng.randi_range(0, ENCOUNTERS.size() - 1)].duplicate(true)
+	enemy_max_hp = int(battle_enemy.hp) + int(realm_index * 14)
+	enemy_hp = enemy_max_hp
+	enemy_pressure = int(battle_enemy.pressure) + int(realm_index * 4) + int(pollution * 0.08)
+	player_guard = 0
+	battle_resonance = 0
+	for button in battle_buttons.values():
+		button.disabled = false
+	leave_battle_button.text = "脱离战场"
+	leave_battle_button.disabled = false
+	_add_battle_log("遭遇%s。%s" % [battle_enemy.name, battle_enemy.text])
+	_show_battle()
+	_update_battle_ui()
+
+
+func _battle_action(action_id: String) -> void:
+	if not battle_active:
+		return
+	var action: Dictionary = BATTLE_ACTIONS[action_id]
+	var element: String = action.element
+	var affinity: int = _element_affinity(element)
+	var damage: int = int(action.power) + int(affinity * 0.18) + int(insight * 0.12) + rng.randi_range(-4, 6)
+	if element == String(battle_enemy.weak):
+		damage = int(damage * 1.35)
+		battle_resonance += 2
+		_add_battle_log("%s击中弱点，敌方灵气结构松动。" % action.name)
+	elif element == String(battle_enemy.resist):
+		damage = int(damage * 0.62)
+		_add_battle_log("%s被敌方灵性抵消。" % action.name)
+	else:
+		_add_battle_log("施展%s。" % action.name)
+
+	match action_id:
+		"wood":
+			stability += rng.randi_range(3, 7)
+			enemy_pressure -= 2
+		"water":
+			enemy_pressure -= rng.randi_range(5, 10)
+			heart_demon = max(0, heart_demon - rng.randi_range(1, 4))
+		"fire":
+			pollution += rng.randi_range(3, 7)
+			heart_demon += rng.randi_range(2, 5)
+		"earth":
+			player_guard += rng.randi_range(9, 16)
+			stability += rng.randi_range(2, 5)
+		"demon":
+			heart_demon += rng.randi_range(8, 14)
+			karma += rng.randi_range(2, 6)
+			_add_state("战中借魔")
+
+	enemy_hp -= max(1, damage)
+	stability -= max(0, int(action.cost))
+	risk += max(0, int(action.risk / 4))
+	enemy_pressure = clamp(enemy_pressure, 0, 100)
+	_add_battle_log("造成%d点结构破坏。" % max(1, damage))
+
+	if enemy_hp <= 0:
+		_finish_battle(true)
+		return
+
+	_enemy_counter()
+	battle_turn += 1
+	_clamp_core()
+	if _check_game_over():
+		battle_active = false
+		return
+	_update_battle_ui()
+
+
+func _enemy_counter() -> void:
+	var pressure_hit: int = enemy_pressure + rng.randi_range(4, 14) - player_guard
+	player_guard = max(0, player_guard - 8)
+	if pressure_hit <= 0:
+		_add_battle_log("土行守形抵住敌方灵压。")
+		return
+	var stability_loss: int = max(2, int(pressure_hit * 0.28))
+	var pollution_gain: int = max(0, int(pressure_hit * 0.08))
+	stability -= stability_loss
+	pollution += pollution_gain
+	heaven_correction += rng.randi_range(1, 4)
+	_add_battle_log("%s反噬，道基受损%d。" % [battle_enemy.name, stability_loss])
+
+
+func _finish_battle(victory: bool) -> void:
+	battle_active = false
+	for button in battle_buttons.values():
+		button.disabled = true
+	leave_battle_button.text = "回到修道"
+	leave_battle_button.disabled = false
+	if victory:
+		var reward: String = battle_enemy.reward
+		if not relics.has(reward):
+			relics.append(reward)
+		cultivation += rng.randi_range(10, 18)
+		insight += rng.randi_range(2, 6)
+		karma += rng.randi_range(4, 9)
+		heaven_correction += rng.randi_range(3, 7)
+		_add_state("战胜%s" % battle_enemy.name)
+		_add_log("战胜%s，取得%s。" % [battle_enemy.name, reward])
+		_add_battle_log("敌方灵气结构崩解，因果回流。")
+	else:
+		stability -= rng.randi_range(8, 15)
+		pollution += rng.randi_range(6, 12)
+		heart_demon += rng.randi_range(5, 10)
+		_add_state("败退残伤")
+		_add_log("从%s手中败退，道基留下暗伤。" % battle_enemy.name)
+		_add_battle_log("你强行斩断战场因果，带伤脱离。")
+	_advance_world()
+	turn += 1
+	_clamp_core()
+	_update_battle_ui()
+
+
+func _flee_battle() -> void:
+	if battle_active:
+		_finish_battle(false)
+		return
+	for button in battle_buttons.values():
+		button.disabled = false
+	leave_battle_button.text = "脱离战场"
+	_show_game()
+	_present_turn()
+
+
+func _element_affinity(element: String) -> int:
+	if element == "心魔":
+		return heart_demon + int(character_obsession.get("heart", 0))
+	if root_data.is_empty():
+		return 0
+	return int(root_data.elements.get(element, 0))
+
+
+func _add_battle_log(line: String) -> void:
+	battle_logs.push_front("战斗%d：%s" % [battle_turn, line])
+	if battle_logs.size() > MAX_LOG_LINES:
+		battle_logs.resize(MAX_LOG_LINES)
+
+
+func _update_battle_ui() -> void:
+	battle_title.text = "第%d合：%s" % [battle_turn, battle_enemy.name]
+	battle_enemy_label.text = "%s · %s\n主性：%s / 弱点：%s / 抗性：%s" % [
+		battle_enemy.name,
+		battle_enemy.realm,
+		battle_enemy.element,
+		battle_enemy.weak,
+		battle_enemy.resist
+	]
+	battle_enemy_bar.max_value = enemy_max_hp
+	battle_enemy_bar.value = clamp(enemy_hp, 0, enemy_max_hp)
+	battle_pressure_bar.max_value = 100
+	battle_pressure_bar.value = clamp(enemy_pressure, 0, 100)
+	battle_player_bar.max_value = 100
+	battle_player_bar.value = clamp(stability, 0, 100)
+	battle_body.text = "[b]战场判断[/b]\n%s\n\n[b]自身构筑[/b]\n%s\n五行：%s\n\n[b]当前代价[/b]\n污染%d / 因果%d / 心魔%d / 天道修正%d\n\n[b]操作提示[/b]\n用敌方弱点提高结构破坏；用木、水、土维持体系；心魔借力能强行破局，但会把代价带回现实。" % [
+		battle_enemy.text,
+		_get_effective_build(),
+		_format_elements(),
+		pollution,
+		karma,
+		heart_demon,
+		heaven_correction
+	]
+	battle_log_box.text = "\n".join(battle_logs) if not battle_logs.is_empty() else "战斗尚未留下残响。"
 
 
 func _attempt_breakthrough() -> void:
