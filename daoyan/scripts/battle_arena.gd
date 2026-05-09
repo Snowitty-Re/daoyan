@@ -2,6 +2,10 @@ extends Control
 
 signal battle_finished(victory: bool, result: Dictionary)
 
+const PLAYER_TEX: Texture2D = preload("res://assets/art/combat_player.svg")
+const ENEMY_TEX: Texture2D = preload("res://assets/art/combat_enemy.svg")
+const SWORD_TEX: Texture2D = preload("res://assets/art/flying_sword.svg")
+
 const ARENA_SIZE := Vector2(920, 540)
 const PLAYER_RADIUS := 15.0
 const ENEMY_RADIUS := 22.0
@@ -24,6 +28,7 @@ var player := {
 	"sword_cd": 0.0,
 	"spell_cd": 0.0,
 	"demon_cd": 0.0,
+	"hit_flash": 0.0,
 	"facing": Vector2.RIGHT,
 }
 var enemy := {
@@ -35,11 +40,13 @@ var enemy := {
 	"phase": 1,
 	"touch_cd": 0.0,
 	"cast_timer": 2.0,
+	"hit_flash": 0.0,
 }
 var context := {}
 var projectiles: Array[Dictionary] = []
 var enemy_bullets: Array[Dictionary] = []
 var slash_arcs: Array[Dictionary] = []
+var afterimages: Array[Dictionary] = []
 var floating_text: Array[Dictionary] = []
 var logs: Array[String] = []
 var qi := {"金": 30.0, "木": 20.0, "水": 20.0, "火": 20.0, "土": 20.0}
@@ -66,6 +73,7 @@ func start_battle(payload: Dictionary) -> void:
 	projectiles.clear()
 	enemy_bullets.clear()
 	slash_arcs.clear()
+	afterimages.clear()
 	floating_text.clear()
 	logs.clear()
 	pollution_gain = 0
@@ -80,6 +88,7 @@ func start_battle(payload: Dictionary) -> void:
 	enemy.phase = 1
 	enemy.touch_cd = 0.0
 	enemy.cast_timer = 1.8
+	enemy.hit_flash = 0.0
 	player.pos = ARENA_SIZE * 0.5 + Vector2(-210, 40)
 	player.vel = Vector2.ZERO
 	player.hp = 100.0
@@ -91,6 +100,7 @@ func start_battle(payload: Dictionary) -> void:
 	player.sword_cd = 0.0
 	player.spell_cd = 0.0
 	player.demon_cd = 0.0
+	player.hit_flash = 0.0
 	player.facing = Vector2.RIGHT
 	enemy.pos = ARENA_SIZE * 0.5 + Vector2(220, -20)
 	_init_qi()
@@ -144,10 +154,11 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _update_cooldowns(delta: float) -> void:
-	for key in ["dodge_cd", "invuln", "attack_cd", "sword_cd", "spell_cd", "demon_cd"]:
+	for key in ["dodge_cd", "invuln", "attack_cd", "sword_cd", "spell_cd", "demon_cd", "hit_flash"]:
 		player[key] = max(0.0, float(player[key]) - delta)
 	enemy.touch_cd = max(0.0, float(enemy.touch_cd) - delta)
 	enemy.cast_timer = max(0.0, float(enemy.cast_timer) - delta)
+	enemy.hit_flash = max(0.0, float(enemy.hit_flash) - delta)
 
 
 func _update_player(delta: float) -> void:
@@ -225,10 +236,13 @@ func _update_projectiles(delta: float) -> void:
 func _update_effects(delta: float) -> void:
 	for arc in slash_arcs:
 		arc.life -= delta
+	for image in afterimages:
+		image.life -= delta
 	for text in floating_text:
 		text.life -= delta
 		text.pos.y -= 22.0 * delta
 	slash_arcs = slash_arcs.filter(func(item: Dictionary) -> bool: return float(item.life) > 0.0)
+	afterimages = afterimages.filter(func(item: Dictionary) -> bool: return float(item.life) > 0.0)
 	floating_text = floating_text.filter(func(item: Dictionary) -> bool: return float(item.life) > 0.0)
 
 
@@ -335,6 +349,7 @@ func _dodge() -> void:
 	var dir: Vector2 = player.facing
 	if dir.length() <= 0.0:
 		dir = Vector2.RIGHT
+	afterimages.append({"pos": player.pos, "facing": player.facing, "life": 0.24})
 	player.pos = _clamp_to_arena(player.pos + dir.normalized() * 92.0, PLAYER_RADIUS)
 
 
@@ -352,6 +367,7 @@ func _damage_enemy(amount: float, element: String) -> void:
 	elif element == String(enemy_data.get("resist", "")):
 		final *= 0.65
 	enemy.hp -= final
+	enemy.hit_flash = 0.12
 	cultivation_gain += int(final * 0.04)
 	_float_text(enemy.pos + Vector2(rng.randf_range(-12, 12), -26), str(int(final)), _element_color(element))
 
@@ -364,6 +380,7 @@ func _damage_player(amount: float, source: String) -> void:
 	player.guard = max(0.0, float(player.guard) - guarded)
 	var final: float = max(1.0, amount - guarded)
 	player.hp -= final
+	player.hit_flash = 0.16
 	_float_text(player.pos + Vector2(0, -30), "%s -%d" % [source, int(final)], Color(0.95, 0.45, 0.42))
 
 
@@ -492,17 +509,31 @@ func _draw_entities() -> void:
 	for bullet in enemy_bullets:
 		draw_circle(bullet.pos, ENEMY_BULLET_RADIUS, Color(0.68, 0.18, 0.24, 0.88))
 	for projectile in projectiles:
-		draw_circle(projectile.pos, float(projectile.radius), _element_color(projectile.element))
-		draw_line(projectile.pos - projectile.vel.normalized() * 18.0, projectile.pos, _element_color(projectile.element), 2.0)
+		var sword_size := Vector2(58, 16)
+		draw_set_transform(projectile.pos, projectile.vel.angle(), Vector2.ONE)
+		draw_texture_rect(SWORD_TEX, Rect2(-sword_size * 0.5, sword_size), false, _element_color(projectile.element))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		draw_line(projectile.pos - projectile.vel.normalized() * 28.0, projectile.pos, _element_color(projectile.element), 2.0)
 	for arc in slash_arcs:
 		var color := Color(0.92, 0.88, 0.7, max(0.0, float(arc.life) / 0.16))
 		draw_arc(arc.pos, float(arc.reach), arc.dir.angle() - 0.7, arc.dir.angle() + 0.7, 18, color, 5.0)
+	for image in afterimages:
+		var alpha: float = max(0.0, float(image.life) / 0.24) * 0.42
+		var image_size := Vector2(72, 72)
+		draw_texture_rect(PLAYER_TEX, Rect2(image.pos - image_size * 0.5, image_size), false, Color(0.82, 0.92, 0.9, alpha))
 	draw_circle(enemy.pos, ENEMY_RADIUS + 12.0, Color(0.55, 0.16, 0.2, 0.18))
-	draw_circle(enemy.pos, ENEMY_RADIUS, Color(0.16, 0.08, 0.09))
+	var enemy_size := Vector2(86, 86) * (1.0 + 0.04 * sin(battle_time * 7.0))
+	var enemy_mod := Color(1.0, 0.72, 0.68, 1.0) if float(enemy.hit_flash) > 0.0 else Color.WHITE
+	draw_texture_rect(ENEMY_TEX, Rect2(enemy.pos - enemy_size * 0.5, enemy_size), false, enemy_mod)
 	draw_arc(enemy.pos, ENEMY_RADIUS + 8.0, 0.0, TAU, 42, Color(0.82, 0.35, 0.32, 0.65), 2.0)
-	var player_color := Color(0.76, 0.86, 0.82) if float(player.invuln) <= 0.0 else Color(0.92, 0.95, 0.9)
 	draw_circle(player.pos, PLAYER_RADIUS + float(player.guard) * 0.09, Color(0.68, 0.64, 0.38, 0.16))
-	draw_circle(player.pos, PLAYER_RADIUS, player_color)
+	var player_size := Vector2(72, 72) * (1.0 + 0.03 * sin(battle_time * 10.0))
+	var player_mod := Color.WHITE
+	if float(player.hit_flash) > 0.0:
+		player_mod = Color(1.0, 0.74, 0.68, 1.0)
+	elif float(player.invuln) > 0.0:
+		player_mod = Color(0.82, 0.96, 0.94, 0.78)
+	draw_texture_rect(PLAYER_TEX, Rect2(player.pos - player_size * 0.5, player_size), false, player_mod)
 	draw_line(player.pos, player.pos + player.facing.normalized() * 28.0, Color(0.94, 0.86, 0.62), 3.0)
 	for item in floating_text:
 		draw_string(ThemeDB.fallback_font, item.pos, item.text, HORIZONTAL_ALIGNMENT_CENTER, -1, 15, item.color)

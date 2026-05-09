@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960">
+  <defs>
+    <radialGradient id="aura" cx="50%" cy="31%" r="55%">
+      <stop offset="0" stop-color="#d7c17a" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#d7c17a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="robe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#36545a"/>
+      <stop offset="0.5" stop-color="#151d20"/>
+      <stop offset="1" stop-color="#3b2d24"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="960" fill="none"/>
+  <circle cx="360" cy="288" r="292" fill="url(#aura)"/>
+  <g fill="none" stroke="#cdbb75" opacity="0.22">
+    <circle cx="360" cy="292" r="220"/>
+    <path d="M140 292 H580"/>
+    <path d="M360 72 V512"/>
+  </g>
+  <path d="M359 106 C305 110 270 150 279 205 C286 252 315 280 360 281 C405 280 436 247 441 201 C446 149 411 110 359 106 Z" fill="#161b1d"/>
+  <path d="M234 404 C266 322 305 282 360 282 C418 282 460 326 490 410 C538 546 576 738 596 934 H126 C148 734 184 540 234 404 Z" fill="url(#robe)"/>
+  <path d="M292 332 C322 372 398 373 429 333 C407 476 410 668 444 934 H276 C312 668 314 476 292 332 Z" fill="#1f292c" opacity="0.92"/>
+  <path d="M232 420 C146 506 102 636 84 820 C126 774 166 760 207 780 C214 640 240 532 286 442 Z" fill="#172326"/>
+  <path d="M488 420 C574 506 618 636 636 820 C594 774 554 760 513 780 C506 640 480 532 434 442 Z" fill="#172326"/>
+  <g fill="none" stroke="#d4c07a" stroke-width="4" opacity="0.5">
+    <circle cx="360" cy="536" r="74"/>
+    <path d="M286 536 H434"/>
+    <path d="M360 462 V610"/>
+    <path d="M226 934 C274 808 302 650 312 504"/>
+    <path d="M494 934 C446 808 418 650 408 504"/>
+  </g>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071014"/>
+      <stop offset="0.46" stop-color="#132226"/>
+      <stop offset="1" stop-color="#2b211c"/>
+    </linearGradient>
+    <radialGradient id="rift" cx="58%" cy="31%" r="60%">
+      <stop offset="0" stop-color="#d4bc73" stop-opacity="0.45"/>
+      <stop offset="0.25" stop-color="#9b665c" stop-opacity="0.22"/>
+      <stop offset="0.68" stop-color="#466d73" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fog" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#b8c9c0" stop-opacity="0"/>
+      <stop offset="0.48" stop-color="#d1d4bd" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#b8c9c0" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#rift)"/>
+  <g fill="none">
+    <path d="M1080 48 C1129 168 1038 250 1116 360 C1184 457 1112 580 1194 714" stroke="#dcc374" stroke-width="5" opacity="0.48"/>
+    <path d="M1124 61 C1194 178 1150 282 1232 384 C1295 463 1252 591 1340 728" stroke="#86aca9" stroke-width="3" opacity="0.24"/>
+    <path d="M1026 70 C1048 191 984 300 1038 410 C1084 504 1018 620 1088 759" stroke="#b4655f" stroke-width="3" opacity="0.24"/>
+  </g>
+  <g opacity="0.18" stroke="#d5c180" fill="none">
+    <circle cx="1120" cy="392" r="164"/>
+    <circle cx="1120" cy="392" r="260"/>
+    <path d="M860 392 H1380"/>
+    <path d="M1120 132 V652"/>
+    <path d="M936 208 L1304 576"/>
+    <path d="M1304 208 L936 576"/>
+  </g>
+  <path d="M0 706 C260 628 430 690 640 612 C840 538 1018 590 1214 520 C1448 438 1602 492 1920 392 L1920 1080 L0 1080 Z" fill="#081014" opacity="0.9"/>
+  <path d="M0 804 C304 728 512 782 760 714 C986 652 1140 690 1390 624 C1610 566 1760 604 1920 548 L1920 1080 L0 1080 Z" fill="#171c1b"/>
+  <path d="M0 902 C248 846 500 884 742 820 C1038 742 1274 824 1920 720 L1920 1080 L0 1080 Z" fill="#242118"/>
+  <rect y="270" width="1920" height="140" fill="url(#fog)"/>
+  <rect y="640" width="1920" height="160" fill="url(#fog)" opacity="0.8"/>
+</svg>

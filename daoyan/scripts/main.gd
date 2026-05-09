@@ -1,9 +1,12 @@
 extends Control
 
-enum ScreenState { CREATE, PROFILE, GAME, BATTLE }
+enum ScreenState { TITLE, LOAD, SETTINGS, CREATE, PROFILE, GAME, BATTLE }
 
 const BG_TEX: Texture2D = preload("res://assets/art/dao_background.svg")
 const CULTIVATOR_TEX: Texture2D = preload("res://assets/art/cultivator_silhouette.svg")
+const PORTRAIT_TEX: Texture2D = preload("res://assets/art/portrait_protagonist.svg")
+const TITLE_BG_TEX: Texture2D = preload("res://assets/art/title_background.svg")
+const TITLE_LOGO_TEX: Texture2D = preload("res://assets/ui/title_logo.svg")
 const LINGXU_TEX: Texture2D = preload("res://assets/art/lingxu_panel.svg")
 const ELEMENT_TEX: Texture2D = preload("res://assets/ui/five_elements.svg")
 const BATTLE_TEX: Texture2D = preload("res://assets/art/battle_wound.svg")
@@ -171,7 +174,7 @@ const ACTIONS := {
 	},
 	"battle": {
 		"title": "灵压遭遇",
-		"desc": "进入构筑战斗。以五行联动和代价管理破开敌人的灵气结构。",
+		"desc": "进入实时动作战斗。走位、闪避、斩击、飞剑与五行术式会共同决定结果。",
 		"button": "遭遇"
 	}
 }
@@ -213,7 +216,7 @@ const ENCOUNTERS := [
 ]
 
 var rng := RandomNumberGenerator.new()
-var current_screen: ScreenState = ScreenState.CREATE
+var current_screen: ScreenState = ScreenState.TITLE
 var game_started := false
 var selected_root_index := 0
 var selected_origin_index := 0
@@ -251,6 +254,9 @@ var battle_enemy := {}
 var battle_result_pending := false
 
 var create_screen: Control
+var title_screen: Control
+var load_screen: Control
+var settings_screen: Control
 var profile_screen: Control
 var game_screen: Control
 var battle_screen: Control
@@ -265,6 +271,7 @@ var preview_body: RichTextLabel
 var profile_title: Label
 var profile_body: RichTextLabel
 var profile_stats: RichTextLabel
+var header_bar: Control
 var title_label: Label
 var subtitle_label: Label
 var character_label: Label
@@ -290,16 +297,15 @@ var battle_log_box: RichTextLabel
 var battle_arena: Control
 var battle_status_label: RichTextLabel
 var battle_exit_button: Button
+var title_status_label: Label
+var load_info_label: RichTextLabel
+var settings_info_label: RichTextLabel
 
 
 func _ready() -> void:
 	rng.randomize()
 	_build_ui()
-	_show_create()
-
-
-func _process(delta: float) -> void:
-	pass
+	_show_title()
 
 
 func _build_ui() -> void:
@@ -327,18 +333,21 @@ func _build_ui() -> void:
 	main.add_theme_constant_override("separation", 12)
 	outer.add_child(main)
 
-	var header := _build_header()
-	main.add_child(header)
+	header_bar = _build_header()
+	main.add_child(header_bar)
 
 	var content_stack := Control.new()
 	content_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	main.add_child(content_stack)
 
+	title_screen = _build_title_screen()
+	load_screen = _build_load_screen()
+	settings_screen = _build_settings_screen()
 	create_screen = _build_create_screen()
 	profile_screen = _build_profile_screen()
 	game_screen = _build_game_screen()
 	battle_screen = _build_battle_screen()
-	for screen in [create_screen, profile_screen, game_screen, battle_screen]:
+	for screen in [title_screen, load_screen, settings_screen, create_screen, profile_screen, game_screen, battle_screen]:
 		screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 		content_stack.add_child(screen)
 
@@ -371,6 +380,163 @@ func _build_header() -> Control:
 	return header
 
 
+func _build_title_screen() -> Control:
+	var screen := Control.new()
+
+	var title_bg := TextureRect.new()
+	title_bg.texture = TITLE_BG_TEX
+	title_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	title_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	title_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(title_bg)
+
+	var shadow := ColorRect.new()
+	shadow.color = Color(0.015, 0.02, 0.023, 0.32)
+	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(shadow)
+
+	var frame := MarginContainer.new()
+	frame.name = "Frame"
+	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	frame.add_theme_constant_override("margin_left", 48)
+	frame.add_theme_constant_override("margin_right", 48)
+	frame.add_theme_constant_override("margin_top", 34)
+	frame.add_theme_constant_override("margin_bottom", 34)
+	screen.add_child(frame)
+
+	var layout := HBoxContainer.new()
+	layout.add_theme_constant_override("separation", 36)
+	frame.add_child(layout)
+
+	var hero := VBoxContainer.new()
+	hero.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hero.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hero.add_theme_constant_override("separation", 18)
+	layout.add_child(hero)
+
+	var logo_art := TextureRect.new()
+	logo_art.texture = TITLE_LOGO_TEX
+	logo_art.custom_minimum_size = Vector2(0, 250)
+	logo_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hero.add_child(logo_art)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hero.add_child(spacer)
+
+	var title_copy := RichTextLabel.new()
+	title_copy.bbcode_enabled = true
+	title_copy.fit_content = true
+	title_copy.scroll_active = false
+	title_copy.add_theme_font_size_override("normal_font_size", 18)
+	title_copy.add_theme_color_override("default_color", Color(0.9, 0.86, 0.74))
+	title_copy.text = "[b]残道未死，飞升已断。[/b]\n在污染、因果与心魔之间建立自己的修炼体系。"
+	hero.add_child(title_copy)
+
+	var menu_panel := PanelContainer.new()
+	menu_panel.custom_minimum_size = Vector2(360, 0)
+	var menu_style := StyleBoxFlat.new()
+	menu_style.bg_color = Color(0.045, 0.055, 0.058, 0.82)
+	menu_style.border_color = Color(0.78, 0.67, 0.38, 0.55)
+	menu_style.set_border_width_all(1)
+	menu_style.corner_radius_top_left = 7
+	menu_style.corner_radius_top_right = 7
+	menu_style.corner_radius_bottom_left = 7
+	menu_style.corner_radius_bottom_right = 7
+	menu_style.content_margin_left = 24
+	menu_style.content_margin_right = 24
+	menu_style.content_margin_top = 28
+	menu_style.content_margin_bottom = 28
+	menu_panel.add_theme_stylebox_override("panel", menu_style)
+	layout.add_child(menu_panel)
+
+	var menu := VBoxContainer.new()
+	menu.add_theme_constant_override("separation", 14)
+	menu_panel.add_child(menu)
+
+	var mark := Label.new()
+	mark.text = "道湮"
+	mark.add_theme_font_size_override("font_size", 42)
+	mark.add_theme_color_override("font_color", Color(0.95, 0.87, 0.58))
+	menu.add_child(mark)
+
+	var submark := Label.new()
+	submark.text = "DAOYAN"
+	submark.add_theme_font_size_override("font_size", 13)
+	submark.add_theme_color_override("font_color", Color(0.58, 0.72, 0.69))
+	menu.add_child(submark)
+
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 24)
+	menu.add_child(gap)
+
+	var start_button := _make_title_button("开始游戏")
+	start_button.custom_minimum_size = Vector2(0, 52)
+	start_button.pressed.connect(_show_create)
+	menu.add_child(start_button)
+	var load_button := _make_title_button("读取")
+	load_button.custom_minimum_size = Vector2(0, 52)
+	load_button.pressed.connect(_show_load)
+	menu.add_child(load_button)
+	var settings_button := _make_title_button("设置")
+	settings_button.custom_minimum_size = Vector2(0, 52)
+	settings_button.pressed.connect(_show_settings)
+	menu.add_child(settings_button)
+
+	var menu_spacer := Control.new()
+	menu_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	menu.add_child(menu_spacer)
+
+	title_status_label = Label.new()
+	title_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title_status_label.add_theme_color_override("font_color", Color(0.72, 0.78, 0.76))
+	title_status_label.text = "单槽位存档 · 实时动作战斗 · 五行构筑"
+	menu.add_child(title_status_label)
+	return screen
+
+
+func _build_load_screen() -> Control:
+	var screen := _make_title_subscreen()
+	var panel := _make_title_menu_panel("读取")
+	var menu_row := screen.get_meta("menu_row") as HBoxContainer
+	menu_row.add_child(panel)
+	var body := panel.get_child(0) as VBoxContainer
+	load_info_label = RichTextLabel.new()
+	load_info_label.bbcode_enabled = true
+	load_info_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	load_info_label.scroll_active = true
+	body.add_child(load_info_label)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 10)
+	body.add_child(actions)
+	var load_button := _make_title_button("读取单槽位")
+	load_button.pressed.connect(_load_game)
+	actions.add_child(load_button)
+	var back_button := _make_title_button("返回")
+	back_button.pressed.connect(_show_title)
+	actions.add_child(back_button)
+	return screen
+
+
+func _build_settings_screen() -> Control:
+	var screen := _make_title_subscreen()
+	var panel := _make_title_menu_panel("设置")
+	var menu_row := screen.get_meta("menu_row") as HBoxContainer
+	menu_row.add_child(panel)
+	var body := panel.get_child(0) as VBoxContainer
+	settings_info_label = RichTextLabel.new()
+	settings_info_label.bbcode_enabled = true
+	settings_info_label.fit_content = true
+	settings_info_label.scroll_active = false
+	settings_info_label.text = "[b]显示[/b]\n矢量美术资源，随分辨率缩放保持清晰。\n\n[b]战斗操作[/b]\nWASD移动，空格闪避，鼠标攻击，Q/E/R释放五行和心魔能力。\n\n[b]后续设置入口[/b]\n音量、键位、屏幕模式将在音频与输入系统接入后展开。"
+	body.add_child(settings_info_label)
+	var back_button := _make_title_button("返回")
+	back_button.pressed.connect(_show_title)
+	body.add_child(back_button)
+	return screen
+
+
 func _build_create_screen() -> Control:
 	var screen := HBoxContainer.new()
 	screen.add_theme_constant_override("separation", 14)
@@ -380,7 +546,7 @@ func _build_create_screen() -> Control:
 	screen.add_child(art_panel)
 	var art_body := _panel_body(art_panel)
 	portrait_texture = TextureRect.new()
-	portrait_texture.texture = CULTIVATOR_TEX
+	portrait_texture.texture = PORTRAIT_TEX
 	portrait_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	portrait_texture.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
 	portrait_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -504,7 +670,7 @@ func _build_profile_screen() -> Control:
 	var side := _panel_body(side_panel)
 
 	var portrait := TextureRect.new()
-	portrait.texture = CULTIVATOR_TEX
+	portrait.texture = PORTRAIT_TEX
 	portrait.custom_minimum_size = Vector2(0, 260)
 	portrait.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -633,6 +799,12 @@ func _build_game_screen() -> Control:
 	change_character_button = _make_button("重建角色")
 	change_character_button.pressed.connect(_show_create)
 	bottom_actions.add_child(change_character_button)
+	var save_button := _make_button("保存")
+	save_button.pressed.connect(_save_game)
+	bottom_actions.add_child(save_button)
+	var title_button := _make_button("返回标题")
+	title_button.pressed.connect(_show_title)
+	bottom_actions.add_child(title_button)
 
 	var npc_panel := _make_panel("NPC自行演化", false)
 	right.add_child(npc_panel)
@@ -798,6 +970,83 @@ func _make_button(text: String) -> Button:
 	return button
 
 
+func _make_title_button(text: String) -> Button:
+	var button := _make_button(text)
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.105, 0.125, 0.12, 0.92)
+	normal.border_color = Color(0.7, 0.58, 0.31, 0.72)
+	normal.set_border_width_all(1)
+	normal.corner_radius_top_left = 6
+	normal.corner_radius_top_right = 6
+	normal.corner_radius_bottom_left = 6
+	normal.corner_radius_bottom_right = 6
+	var hover := normal.duplicate()
+	hover.bg_color = Color(0.2, 0.235, 0.205, 0.98)
+	hover.border_color = Color(0.92, 0.76, 0.42, 0.9)
+	var pressed := normal.duplicate()
+	pressed.bg_color = Color(0.055, 0.065, 0.064, 1.0)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_color_override("font_color", Color(0.96, 0.9, 0.68))
+	return button
+
+
+func _make_title_subscreen() -> Control:
+	var screen := Control.new()
+	var title_bg := TextureRect.new()
+	title_bg.texture = TITLE_BG_TEX
+	title_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	title_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	title_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(title_bg)
+	var shadow := ColorRect.new()
+	shadow.color = Color(0.015, 0.02, 0.023, 0.48)
+	shadow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(shadow)
+	var frame := MarginContainer.new()
+	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	frame.add_theme_constant_override("margin_left", 64)
+	frame.add_theme_constant_override("margin_right", 64)
+	frame.add_theme_constant_override("margin_top", 46)
+	frame.add_theme_constant_override("margin_bottom", 46)
+	screen.add_child(frame)
+	var row := HBoxContainer.new()
+	row.name = "MenuRow"
+	row.alignment = BoxContainer.ALIGNMENT_END
+	frame.add_child(row)
+	screen.set_meta("menu_row", row)
+	return screen
+
+
+func _make_title_menu_panel(title: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(430, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.045, 0.055, 0.058, 0.86)
+	style.border_color = Color(0.78, 0.67, 0.38, 0.58)
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 7
+	style.corner_radius_top_right = 7
+	style.corner_radius_bottom_left = 7
+	style.corner_radius_bottom_right = 7
+	style.content_margin_left = 24
+	style.content_margin_right = 24
+	style.content_margin_top = 24
+	style.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", style)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 12)
+	panel.add_child(body)
+	var label := Label.new()
+	label.text = title
+	label.add_theme_font_size_override("font_size", 30)
+	label.add_theme_color_override("font_color", Color(0.95, 0.87, 0.58))
+	body.add_child(label)
+	return panel
+
+
 func _panel_body(panel: PanelContainer) -> VBoxContainer:
 	return panel.get_child(0) as VBoxContainer
 
@@ -808,6 +1057,25 @@ func _show_create() -> void:
 	subtitle_label.text = "残道时代 · 修道者创建"
 	_set_screen_visibility()
 	_refresh_create_preview()
+
+
+func _show_title() -> void:
+	current_screen = ScreenState.TITLE
+	subtitle_label.text = "残道时代"
+	_set_screen_visibility()
+
+
+func _show_load() -> void:
+	current_screen = ScreenState.LOAD
+	subtitle_label.text = "残道时代 · 读取"
+	_set_screen_visibility()
+	_refresh_load_screen()
+
+
+func _show_settings() -> void:
+	current_screen = ScreenState.SETTINGS
+	subtitle_label.text = "残道时代 · 设置"
+	_set_screen_visibility()
 
 
 func _show_profile() -> void:
@@ -824,11 +1092,15 @@ func _show_game() -> void:
 
 func _show_battle() -> void:
 	current_screen = ScreenState.BATTLE
-	subtitle_label.text = "残道时代 · 构筑战斗"
+	subtitle_label.text = "残道时代 · 实时战斗"
 	_set_screen_visibility()
 
 
 func _set_screen_visibility() -> void:
+	header_bar.visible = current_screen != ScreenState.TITLE
+	title_screen.visible = current_screen == ScreenState.TITLE
+	load_screen.visible = current_screen == ScreenState.LOAD
+	settings_screen.visible = current_screen == ScreenState.SETTINGS
 	create_screen.visible = current_screen == ScreenState.CREATE
 	profile_screen.visible = current_screen == ScreenState.PROFILE
 	game_screen.visible = current_screen == ScreenState.GAME
@@ -999,6 +1271,108 @@ func _reset_to_profile() -> void:
 	game_started = false
 	_update_profile_screen()
 	_show_profile()
+
+
+func _save_game() -> void:
+	if not game_started:
+		return
+	var data := {
+		"character_name": character_name,
+		"character_gender": character_gender,
+		"character_fate": character_fate,
+		"character_sect": character_sect,
+		"character_epitaph": character_epitaph,
+		"selected_root_index": selected_root_index,
+		"selected_origin_index": selected_origin_index,
+		"selected_path_index": selected_path_index,
+		"selected_obsession_index": selected_obsession_index,
+		"turn": turn,
+		"realm_index": realm_index,
+		"cultivation": cultivation,
+		"insight": insight,
+		"stability": stability,
+		"potential": potential,
+		"risk": risk,
+		"pollution": pollution,
+		"karma": karma,
+		"heart_demon": heart_demon,
+		"heaven_correction": heaven_correction,
+		"sect_trust": sect_trust,
+		"relics": relics,
+		"states": states,
+		"logs": logs,
+		"npc_states": npc_states,
+	}
+	var file := FileAccess.open("user://save_slot_1.json", FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
+		_add_log("本轮因果已写入存档。")
+		_present_turn()
+
+
+func _load_game() -> void:
+	if not FileAccess.file_exists("user://save_slot_1.json"):
+		load_info_label.text = "没有可读取的存档。"
+		return
+	var file := FileAccess.open("user://save_slot_1.json", FileAccess.READ)
+	var parsed = JSON.parse_string(file.get_as_text()) if file else null
+	if typeof(parsed) != TYPE_DICTIONARY:
+		load_info_label.text = "存档损坏，无法读取。"
+		return
+	var data: Dictionary = parsed
+	selected_root_index = int(data.get("selected_root_index", 0))
+	selected_origin_index = int(data.get("selected_origin_index", 0))
+	selected_path_index = int(data.get("selected_path_index", 0))
+	selected_obsession_index = int(data.get("selected_obsession_index", 0))
+	root_data = ROOT_PRESETS[selected_root_index].duplicate(true)
+	character_origin = ORIGIN_PRESETS[selected_origin_index].duplicate(true)
+	character_path = PATH_PRESETS[selected_path_index].duplicate(true)
+	character_obsession = OBSESSION_PRESETS[selected_obsession_index].duplicate(true)
+	character_name = String(data.get("character_name", "无名修士"))
+	character_gender = String(data.get("character_gender", "未定"))
+	character_fate = String(data.get("character_fate", "残命"))
+	character_sect = String(data.get("character_sect", character_origin.get("sect_name", "玄微宗外门")))
+	character_epitaph = String(data.get("character_epitaph", _compose_character_epitaph()))
+	turn = int(data.get("turn", 1))
+	realm_index = int(data.get("realm_index", 0))
+	cultivation = int(data.get("cultivation", 10))
+	insight = int(data.get("insight", 5))
+	stability = int(data.get("stability", 50))
+	potential = int(data.get("potential", 50))
+	risk = int(data.get("risk", 10))
+	pollution = int(data.get("pollution", 0))
+	karma = int(data.get("karma", 0))
+	heart_demon = int(data.get("heart_demon", 0))
+	heaven_correction = int(data.get("heaven_correction", 0))
+	sect_trust = int(data.get("sect_trust", 30))
+	relics.assign(data.get("relics", []))
+	states.assign(data.get("states", []))
+	logs.assign(data.get("logs", []))
+	npc_states = data.get("npc_states", {})
+	game_started = true
+	_show_game()
+	_present_turn()
+
+
+func _refresh_load_screen() -> void:
+	if not FileAccess.file_exists("user://save_slot_1.json"):
+		load_info_label.text = "[b]单槽位[/b]\n暂无存档。"
+		return
+	var file := FileAccess.open("user://save_slot_1.json", FileAccess.READ)
+	var parsed = JSON.parse_string(file.get_as_text()) if file else null
+	if typeof(parsed) != TYPE_DICTIONARY:
+		load_info_label.text = "[b]单槽位[/b]\n存档损坏。"
+		return
+	var data: Dictionary = parsed
+	load_info_label.text = "[b]单槽位[/b]\n%s · %s\n境界：%s\n回合：%d\n污染：%d / 因果：%d / 心魔：%d" % [
+		data.get("character_name", "无名修士"),
+		data.get("character_fate", "残命"),
+		REALMS[int(data.get("realm_index", 0))],
+		int(data.get("turn", 1)),
+		int(data.get("pollution", 0)),
+		int(data.get("karma", 0)),
+		int(data.get("heart_demon", 0))
+	]
 
 
 func _present_turn() -> void:
