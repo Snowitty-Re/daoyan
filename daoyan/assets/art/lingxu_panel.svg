@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#132226"/>
+      <stop offset="0.55" stop-color="#211f23"/>
+      <stop offset="1" stop-color="#35251d"/>
+    </linearGradient>
+    <radialGradient id="wound" cx="48%" cy="47%" r="58%">
+      <stop offset="0" stop-color="#d6b45f" stop-opacity="0.45"/>
+      <stop offset="0.45" stop-color="#806b98" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="900" height="420" rx="18" fill="url(#base)"/>
+  <rect width="900" height="420" rx="18" fill="url(#wound)"/>
+  <g fill="none">
+    <path d="M72 303 C194 254 279 295 383 231 C474 175 576 199 681 143 C754 104 820 110 892 77" stroke="#cbbd82" stroke-width="2" opacity="0.24"/>
+    <path d="M96 352 C246 306 332 330 457 272 C566 222 631 241 801 176" stroke="#80aeb0" stroke-width="2" opacity="0.18"/>
+    <path d="M462 47 C424 116 476 169 421 237 C385 282 417 340 363 395" stroke="#d8c27b" stroke-width="4" opacity="0.45"/>
+    <path d="M492 45 C467 122 510 174 471 244 C443 294 468 337 421 398" stroke="#a76861" stroke-width="2" opacity="0.34"/>
+  </g>
+  <g opacity="0.22" stroke="#d8c98e" fill="none">
+    <circle cx="452" cy="224" r="88"/>
+    <circle cx="452" cy="224" r="142"/>
+    <path d="M310 224 H594"/>
+    <path d="M452 82 V366"/>
+  </g>
+</svg>

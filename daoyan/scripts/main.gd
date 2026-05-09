@@ -1,15 +1,15 @@
 extends Control
 
+enum ScreenState { CREATE, PROFILE, GAME }
+
+const BG_TEX: Texture2D = preload("res://assets/art/dao_background.svg")
+const CULTIVATOR_TEX: Texture2D = preload("res://assets/art/cultivator_silhouette.svg")
+const LINGXU_TEX: Texture2D = preload("res://assets/art/lingxu_panel.svg")
+const ELEMENT_TEX: Texture2D = preload("res://assets/ui/five_elements.svg")
+
 const ELEMENTS: Array[String] = ["金", "木", "水", "火", "土"]
-const ELEMENT_TRAITS := {
-	"金": "锐化 / 高频 / 秩序",
-	"木": "生长 / 修复 / 共鸣",
-	"水": "循环 / 变化 / 感知",
-	"火": "转化 / 爆发 / 激化",
-	"土": "承载 / 镇压 / 积累",
-}
 const REALMS: Array[String] = ["炼气", "筑基", "金丹", "元婴", "化神", "洞虚", "渡劫"]
-const MAX_LOG_LINES := 10
+const MAX_LOG_LINES := 12
 
 const ROOT_PRESETS := [
 	{
@@ -20,7 +20,8 @@ const ROOT_PRESETS := [
 		"potential": 42,
 		"risk": 12,
 		"build": "飞剑连锁流",
-		"text": "成型快、运转稳定，后期变化有限。"
+		"text": "成型快、运转稳定，后期变化有限。",
+		"state": "金气入骨"
 	},
 	{
 		"name": "火主木辅灵根",
@@ -30,7 +31,8 @@ const ROOT_PRESETS := [
 		"potential": 64,
 		"risk": 24,
 		"build": "灵植献祭流",
-		"text": "爆发与增殖兼具，容易把心魔一并点燃。"
+		"text": "爆发与增殖兼具，容易把心魔一并点燃。",
+		"state": "木火相燃"
 	},
 	{
 		"name": "水土偏灵根",
@@ -40,7 +42,8 @@ const ROOT_PRESETS := [
 		"potential": 58,
 		"risk": 18,
 		"build": "泥沼领域流",
-		"text": "擅长循环与镇压，启动慢但抗风险能力较强。"
+		"text": "擅长循环与镇压，启动慢但抗风险能力较强。",
+		"state": "水土成域"
 	},
 	{
 		"name": "五行杂灵根",
@@ -50,7 +53,8 @@ const ROOT_PRESETS := [
 		"potential": 92,
 		"risk": 58,
 		"build": "五行循环流",
-		"text": "前期冲突严重，若闭环成立，后期潜力极高。"
+		"text": "前期冲突严重，若闭环成立，后期潜力极高。",
+		"state": "五行未定"
 	},
 	{
 		"name": "残缺死水灵根",
@@ -60,9 +64,86 @@ const ROOT_PRESETS := [
 		"potential": 78,
 		"risk": 72,
 		"build": "因果反噬流",
-		"text": "修炼极慢，但能把伤痕、诅咒与残响转成力量。"
+		"text": "修炼极慢，但能把伤痕、诅咒与残响转成力量。",
+		"state": "死水残根"
 	}
 ]
+
+const ORIGIN_PRESETS := [
+	{
+		"name": "寒门遗孤",
+		"sect_name": "玄微宗外门",
+		"stability": 0,
+		"potential": 5,
+		"risk": 6,
+		"insight": 4,
+		"karma": 14,
+		"sect_trust": 18,
+		"state": "血亲残债",
+		"text": "出身破败凡族，早年亲族卷入修士争斗。你入宗不是被眷顾，而是旧债尚未结清。"
+	},
+	{
+		"name": "宗门弃徒",
+		"sect_name": "玄微宗戒律院",
+		"stability": -4,
+		"potential": 8,
+		"risk": 10,
+		"insight": 7,
+		"karma": 18,
+		"sect_trust": -8,
+		"state": "戒律旧案",
+		"text": "你曾被宗门逐出旁支，又因灵根异动被重新召回。信任很低，但你知道更多内情。"
+	},
+	{
+		"name": "灵墟幸存者",
+		"sect_name": "清河散修盟",
+		"stability": -8,
+		"potential": 12,
+		"risk": 14,
+		"insight": 8,
+		"karma": 10,
+		"sect_trust": 6,
+		"pollution": 12,
+		"state": "灵墟残响",
+		"text": "你从一处时间错乱的灵墟中活着出来，记忆缺失，却带回了不属于炼气修士的感知。"
+	},
+	{
+		"name": "丹房杂役",
+		"sect_name": "玄微宗丹房",
+		"stability": 8,
+		"potential": 0,
+		"risk": -4,
+		"insight": 3,
+		"karma": 6,
+		"sect_trust": 34,
+		"state": "丹火余温",
+		"text": "你长期在丹房观火辨气，修为不显，但比同境弟子更懂灵气稳定的价值。"
+	}
+]
+
+const PATH_PRESETS := [
+	{"name": "剑道", "build": "飞剑连锁流", "insight": 2, "risk": 3, "state": "剑心未成", "text": "以锐化、秩序与一念贯通为道。"},
+	{"name": "丹道", "build": "灵气调和流", "insight": 4, "risk": -2, "state": "丹理初窥", "text": "以转化、平衡与代价交换为道。"},
+	{"name": "因果", "build": "因果反噬流", "insight": 5, "risk": 6, "state": "因果窥痕", "text": "以旧因新果、债与偿为道。"},
+	{"name": "长生", "build": "五行循环流", "insight": 1, "risk": 2, "state": "长生执念", "text": "以循环、续命与维持自我为道。"},
+	{"name": "无情", "build": "神识断执流", "insight": 6, "risk": 7, "state": "情缘将断", "text": "以斩断牵连、压制心魔为道。"}
+]
+
+const OBSESSION_PRESETS := [
+	{"name": "复仇", "karma": 12, "heart": 8, "state": "复仇执念", "text": "某个名字仍压在你的神识深处。"},
+	{"name": "飞升", "karma": 6, "heart": 5, "state": "飞升妄念", "text": "你不相信数百年无人飞升只是巧合。"},
+	{"name": "救人", "karma": 8, "heart": 3, "state": "救命之债", "text": "你欠一条命，也可能被另一条命拖入深渊。"},
+	{"name": "自证大道", "karma": 4, "heart": 7, "state": "自证执念", "text": "你不愿成为宗门谱系里可替换的一笔。"},
+	{"name": "斩断因果", "karma": 10, "heart": 6, "state": "断因之愿", "text": "你想脱离一切关系，但关系不会因此消失。"}
+]
+
+const FATE_BY_ROOT := {
+	"纯灵根": ["天眷", "道劫"],
+	"偏灵根": ["孤命", "天眷"],
+	"杂灵根": ["道劫", "残命"],
+	"残缺灵根": ["残命", "孤命"],
+	"异灵根": ["天煞", "道劫"]
+}
 
 const ACTIONS := {
 	"cultivate": {
@@ -88,8 +169,20 @@ const ACTIONS := {
 }
 
 var rng := RandomNumberGenerator.new()
+var current_screen: ScreenState = ScreenState.CREATE
 var game_started := false
 var selected_root_index := 0
+var selected_origin_index := 0
+var selected_path_index := 0
+var selected_obsession_index := 0
+var character_name := ""
+var character_gender := "未定"
+var character_origin := {}
+var character_path := {}
+var character_obsession := {}
+var character_fate := ""
+var character_sect := ""
+var character_epitaph := ""
 var turn := 1
 var realm_index := 0
 var cultivation := 0
@@ -107,59 +200,94 @@ var relics: Array[String] = []
 var states: Array[String] = []
 var logs: Array[String] = []
 var npc_states := {}
-
 var root_data := {}
 
+var create_screen: Control
+var profile_screen: Control
+var game_screen: Control
+var name_edit: LineEdit
+var gender_select: OptionButton
+var origin_select: OptionButton
+var path_select: OptionButton
+var obsession_select: OptionButton
 var root_select: OptionButton
-var start_button: Button
+var preview_title: Label
+var preview_body: RichTextLabel
+var profile_title: Label
+var profile_body: RichTextLabel
+var profile_stats: RichTextLabel
 var title_label: Label
 var subtitle_label: Label
+var character_label: Label
 var realm_label: Label
 var turn_label: Label
 var root_label: Label
 var build_label: Label
 var doctrine_label: Label
-var stats_grid: GridContainer
+var portrait_texture: TextureRect
 var meter_labels := {}
+var progress_bars := {}
 var event_title: Label
 var event_body: RichTextLabel
+var event_art: TextureRect
 var log_box: RichTextLabel
 var npc_box: RichTextLabel
 var state_box: RichTextLabel
 var action_buttons := {}
 var breakthrough_button: Button
 var restart_button: Button
+var change_character_button: Button
 
 
 func _ready() -> void:
 	rng.randomize()
 	_build_ui()
-	_show_intro()
+	_show_create()
 
 
 func _build_ui() -> void:
-	var style_bg := StyleBoxFlat.new()
-	style_bg.bg_color = Color(0.08, 0.085, 0.09)
+	var background := TextureRect.new()
+	background.texture = BG_TEX
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_SCALE
+	background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(background)
 
-	var root_panel := PanelContainer.new()
-	root_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root_panel.add_theme_stylebox_override("panel", style_bg)
-	add_child(root_panel)
+	var veil := ColorRect.new()
+	veil.color = Color(0.02, 0.025, 0.027, 0.48)
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(veil)
 
 	var outer := MarginContainer.new()
-	outer.add_theme_constant_override("margin_left", 18)
-	outer.add_theme_constant_override("margin_right", 18)
-	outer.add_theme_constant_override("margin_top", 16)
-	outer.add_theme_constant_override("margin_bottom", 16)
-	root_panel.add_child(outer)
+	outer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	outer.add_theme_constant_override("margin_left", 22)
+	outer.add_theme_constant_override("margin_right", 22)
+	outer.add_theme_constant_override("margin_top", 18)
+	outer.add_theme_constant_override("margin_bottom", 18)
+	add_child(outer)
 
 	var main := VBoxContainer.new()
 	main.add_theme_constant_override("separation", 12)
 	outer.add_child(main)
 
+	var header := _build_header()
+	main.add_child(header)
+
+	var content_stack := Control.new()
+	content_stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	main.add_child(content_stack)
+
+	create_screen = _build_create_screen()
+	profile_screen = _build_profile_screen()
+	game_screen = _build_game_screen()
+	for screen in [create_screen, profile_screen, game_screen]:
+		screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+		content_stack.add_child(screen)
+
+
+func _build_header() -> Control:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 14)
-	main.add_child(header)
 
 	var title_group := VBoxContainer.new()
 	title_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -167,57 +295,209 @@ func _build_ui() -> void:
 
 	title_label = Label.new()
 	title_label.text = "道湮"
-	title_label.add_theme_font_size_override("font_size", 34)
+	title_label.add_theme_font_size_override("font_size", 36)
+	title_label.add_theme_color_override("font_color", Color(0.92, 0.86, 0.68))
 	title_group.add_child(title_label)
 
 	subtitle_label = Label.new()
-	subtitle_label.text = "残道时代修道原型"
-	subtitle_label.add_theme_color_override("font_color", Color(0.72, 0.75, 0.76))
+	subtitle_label.text = "残道时代 · 修道者创建"
+	subtitle_label.add_theme_color_override("font_color", Color(0.72, 0.78, 0.76))
 	title_group.add_child(subtitle_label)
 
-	var setup_box := VBoxContainer.new()
-	setup_box.custom_minimum_size = Vector2(260, 0)
-	header.add_child(setup_box)
+	var seal := TextureRect.new()
+	seal.texture = ELEMENT_TEX
+	seal.custom_minimum_size = Vector2(310, 76)
+	seal.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	seal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	header.add_child(seal)
+	return header
+
+
+func _build_create_screen() -> Control:
+	var screen := HBoxContainer.new()
+	screen.add_theme_constant_override("separation", 14)
+
+	var art_panel := _make_panel("人物剪影", true)
+	art_panel.custom_minimum_size = Vector2(360, 0)
+	screen.add_child(art_panel)
+	var art_body := _panel_body(art_panel)
+	portrait_texture = TextureRect.new()
+	portrait_texture.texture = CULTIVATOR_TEX
+	portrait_texture.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	portrait_texture.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
+	portrait_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art_body.add_child(portrait_texture)
+	var art_note := Label.new()
+	art_note.text = "不是天命之子，只是一名即将背上因果的修道者。"
+	art_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	art_note.add_theme_color_override("font_color", Color(0.73, 0.76, 0.72))
+	art_body.add_child(art_note)
+
+	var form_panel := _make_panel("创建角色", true)
+	form_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	screen.add_child(form_panel)
+	var form := _panel_body(form_panel)
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 10)
+	form.add_child(grid)
+
+	name_edit = LineEdit.new()
+	name_edit.placeholder_text = "无名修士"
+	name_edit.text_changed.connect(func(_value: String) -> void: _refresh_create_preview())
+	_add_form_row(grid, "姓名", name_edit)
+
+	gender_select = OptionButton.new()
+	for item in ["未定", "女", "男"]:
+		gender_select.add_item(item)
+	gender_select.item_selected.connect(func(_index: int) -> void: _refresh_create_preview())
+	_add_form_row(grid, "性别", gender_select)
+
+	origin_select = OptionButton.new()
+	for origin in ORIGIN_PRESETS:
+		origin_select.add_item(origin.name)
+	origin_select.item_selected.connect(func(index: int) -> void:
+		selected_origin_index = index
+		_refresh_create_preview()
+	)
+	_add_form_row(grid, "出身", origin_select)
 
 	root_select = OptionButton.new()
 	for preset in ROOT_PRESETS:
 		root_select.add_item("%s · %s" % [preset.name, preset.type])
-	root_select.item_selected.connect(func(_index: int) -> void: _update_identity_preview())
-	setup_box.add_child(root_select)
+	root_select.item_selected.connect(func(index: int) -> void:
+		selected_root_index = index
+		_refresh_create_preview()
+	)
+	_add_form_row(grid, "灵根", root_select)
 
-	start_button = Button.new()
-	start_button.text = "入道"
-	start_button.pressed.connect(_start_game)
-	setup_box.add_child(start_button)
+	path_select = OptionButton.new()
+	for path in PATH_PRESETS:
+		path_select.add_item(path.name)
+	path_select.item_selected.connect(func(index: int) -> void:
+		selected_path_index = index
+		_refresh_create_preview()
+	)
+	_add_form_row(grid, "道途", path_select)
 
-	var content := HBoxContainer.new()
-	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 12)
-	main.add_child(content)
+	obsession_select = OptionButton.new()
+	for obsession in OBSESSION_PRESETS:
+		obsession_select.add_item(obsession.name)
+	obsession_select.item_selected.connect(func(index: int) -> void:
+		selected_obsession_index = index
+		_refresh_create_preview()
+	)
+	_add_form_row(grid, "执念", obsession_select)
+
+	var preview_panel := _make_panel("人物预览", false)
+	preview_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	form.add_child(preview_panel)
+	var preview := _panel_body(preview_panel)
+	preview_title = Label.new()
+	preview_title.add_theme_font_size_override("font_size", 22)
+	preview_title.add_theme_color_override("font_color", Color(0.92, 0.86, 0.68))
+	preview.add_child(preview_title)
+
+	preview_body = RichTextLabel.new()
+	preview_body.bbcode_enabled = true
+	preview_body.fit_content = true
+	preview_body.scroll_active = false
+	preview_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	preview.add_child(preview_body)
+
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 10)
+	form.add_child(actions)
+	var random_button := _make_button("随机一名修士")
+	random_button.pressed.connect(_randomize_character)
+	actions.add_child(random_button)
+	var make_profile_button := _make_button("生成人物设定")
+	make_profile_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	make_profile_button.pressed.connect(_generate_profile)
+	actions.add_child(make_profile_button)
+	return screen
+
+
+func _build_profile_screen() -> Control:
+	var screen := HBoxContainer.new()
+	screen.add_theme_constant_override("separation", 14)
+
+	var summary_panel := _make_panel("人物设定", true)
+	summary_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	screen.add_child(summary_panel)
+	var summary := _panel_body(summary_panel)
+
+	profile_title = Label.new()
+	profile_title.add_theme_font_size_override("font_size", 28)
+	profile_title.add_theme_color_override("font_color", Color(0.94, 0.86, 0.64))
+	summary.add_child(profile_title)
+
+	profile_body = RichTextLabel.new()
+	profile_body.bbcode_enabled = true
+	profile_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	profile_body.scroll_active = true
+	summary.add_child(profile_body)
+
+	var side_panel := _make_panel("入道前评估", true)
+	side_panel.custom_minimum_size = Vector2(360, 0)
+	screen.add_child(side_panel)
+	var side := _panel_body(side_panel)
+
+	var portrait := TextureRect.new()
+	portrait.texture = CULTIVATOR_TEX
+	portrait.custom_minimum_size = Vector2(0, 260)
+	portrait.expand_mode = TextureRect.EXPAND_FIT_HEIGHT_PROPORTIONAL
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	side.add_child(portrait)
+
+	profile_stats = RichTextLabel.new()
+	profile_stats.bbcode_enabled = true
+	profile_stats.fit_content = true
+	profile_stats.scroll_active = false
+	side.add_child(profile_stats)
+
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 10)
+	side.add_child(actions)
+	var back_button := _make_button("重选")
+	back_button.pressed.connect(_show_create)
+	actions.add_child(back_button)
+	var enter_button := _make_button("入道")
+	enter_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	enter_button.pressed.connect(_start_game)
+	actions.add_child(enter_button)
+	return screen
+
+
+func _build_game_screen() -> Control:
+	var screen := HBoxContainer.new()
+	screen.add_theme_constant_override("separation", 12)
 
 	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(300, 0)
+	left.custom_minimum_size = Vector2(320, 0)
 	left.add_theme_constant_override("separation", 10)
-	content.add_child(left)
+	screen.add_child(left)
 
 	var center := VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.add_theme_constant_override("separation", 10)
-	content.add_child(center)
+	screen.add_child(center)
 
 	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(320, 0)
+	right.custom_minimum_size = Vector2(340, 0)
 	right.add_theme_constant_override("separation", 10)
-	content.add_child(right)
+	screen.add_child(right)
 
-	var identity_panel := _make_panel("修士")
+	var identity_panel := _make_panel("修士", false)
 	left.add_child(identity_panel)
-	var identity_body := _panel_body(identity_panel)
-	var identity := VBoxContainer.new()
-	identity.add_theme_constant_override("separation", 5)
-	identity_body.add_child(identity)
-
+	var identity := _panel_body(identity_panel)
+	character_label = Label.new()
+	character_label.add_theme_font_size_override("font_size", 20)
+	character_label.add_theme_color_override("font_color", Color(0.94, 0.86, 0.64))
+	identity.add_child(character_label)
 	turn_label = Label.new()
 	realm_label = Label.new()
 	root_label = Label.new()
@@ -225,47 +505,40 @@ func _build_ui() -> void:
 	doctrine_label = Label.new()
 	doctrine_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	for label in [turn_label, realm_label, root_label, build_label, doctrine_label]:
+		label.add_theme_color_override("font_color", Color(0.78, 0.82, 0.8))
 		identity.add_child(label)
 
-	var stats_panel := _make_panel("状态")
+	var stats_panel := _make_panel("状态", false)
 	left.add_child(stats_panel)
-	var stats_body := _panel_body(stats_panel)
-	stats_grid = GridContainer.new()
-	stats_grid.columns = 2
-	stats_grid.add_theme_constant_override("h_separation", 8)
-	stats_grid.add_theme_constant_override("v_separation", 7)
-	stats_body.add_child(stats_grid)
-
+	var stats := _panel_body(stats_panel)
 	for key in ["修为", "悟性", "稳定", "潜力", "风险", "污染", "因果", "心魔", "天道修正", "宗门信任"]:
-		var name_label := Label.new()
-		name_label.text = key
-		name_label.add_theme_color_override("font_color", Color(0.7, 0.74, 0.75))
-		stats_grid.add_child(name_label)
-		var value_label := Label.new()
-		value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		stats_grid.add_child(value_label)
-		meter_labels[key] = value_label
+		_add_meter(stats, key)
 
-	var states_panel := _make_panel("因果状态")
+	var states_panel := _make_panel("因果状态", false)
+	states_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(states_panel)
-	var states_body := _panel_body(states_panel)
 	state_box = RichTextLabel.new()
-	state_box.custom_minimum_size = Vector2(0, 120)
-	state_box.fit_content = true
-	state_box.scroll_active = false
-	states_body.add_child(state_box)
+	state_box.bbcode_enabled = true
+	state_box.fit_content = false
+	state_box.scroll_active = true
+	state_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_panel_body(states_panel).add_child(state_box)
 
-	var event_panel := _make_panel("当前抉择")
+	var event_panel := _make_panel("当前抉择", true)
 	event_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center.add_child(event_panel)
-	var event_body_container := _panel_body(event_panel)
-	var event_content := VBoxContainer.new()
-	event_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	event_content.add_theme_constant_override("separation", 10)
-	event_body_container.add_child(event_content)
+	var event_content := _panel_body(event_panel)
+
+	event_art = TextureRect.new()
+	event_art.texture = LINGXU_TEX
+	event_art.custom_minimum_size = Vector2(0, 170)
+	event_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	event_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	event_content.add_child(event_art)
 
 	event_title = Label.new()
-	event_title.add_theme_font_size_override("font_size", 22)
+	event_title.add_theme_font_size_override("font_size", 24)
+	event_title.add_theme_color_override("font_color", Color(0.94, 0.86, 0.64))
 	event_content.add_child(event_title)
 
 	event_body = RichTextLabel.new()
@@ -280,107 +553,303 @@ func _build_ui() -> void:
 	action_grid.add_theme_constant_override("h_separation", 8)
 	action_grid.add_theme_constant_override("v_separation", 8)
 	event_content.add_child(action_grid)
-
 	for action_id in ["cultivate", "sect", "ruin", "demon"]:
-		var button := Button.new()
+		var button := _make_button(ACTIONS[action_id].button)
 		button.custom_minimum_size = Vector2(0, 44)
-		button.text = ACTIONS[action_id].button
 		button.pressed.connect(func() -> void: _take_action(action_id))
 		action_grid.add_child(button)
 		action_buttons[action_id] = button
 
-	breakthrough_button = Button.new()
-	breakthrough_button.text = "尝试突破"
+	breakthrough_button = _make_button("尝试突破")
 	breakthrough_button.custom_minimum_size = Vector2(0, 46)
 	breakthrough_button.pressed.connect(_attempt_breakthrough)
 	event_content.add_child(breakthrough_button)
 
-	restart_button = Button.new()
-	restart_button.text = "因果重开"
-	restart_button.pressed.connect(_reset_to_intro)
+	var bottom_actions := HBoxContainer.new()
+	bottom_actions.add_theme_constant_override("separation", 8)
+	event_content.add_child(bottom_actions)
+	restart_button = _make_button("因果重开")
+	restart_button.pressed.connect(_reset_to_profile)
 	restart_button.visible = false
-	event_content.add_child(restart_button)
+	bottom_actions.add_child(restart_button)
+	change_character_button = _make_button("重建角色")
+	change_character_button.pressed.connect(_show_create)
+	bottom_actions.add_child(change_character_button)
 
-	var npc_panel := _make_panel("NPC自行演化")
+	var npc_panel := _make_panel("NPC自行演化", false)
 	right.add_child(npc_panel)
-	var npc_body := _panel_body(npc_panel)
 	npc_box = RichTextLabel.new()
-	npc_box.custom_minimum_size = Vector2(0, 210)
+	npc_box.custom_minimum_size = Vector2(0, 230)
 	npc_box.bbcode_enabled = true
 	npc_box.fit_content = true
 	npc_box.scroll_active = false
-	npc_body.add_child(npc_box)
+	_panel_body(npc_panel).add_child(npc_box)
 
-	var log_panel := _make_panel("残响日志")
+	var log_panel := _make_panel("残响日志", false)
 	log_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(log_panel)
-	var log_body := _panel_body(log_panel)
 	log_box = RichTextLabel.new()
 	log_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	log_box.bbcode_enabled = true
 	log_box.scroll_active = true
-	log_body.add_child(log_box)
+	_panel_body(log_panel).add_child(log_box)
+	return screen
 
 
-func _make_panel(title: String) -> PanelContainer:
+func _add_form_row(grid: GridContainer, label_text: String, input: Control) -> void:
+	var label := Label.new()
+	label.text = label_text
+	label.add_theme_color_override("font_color", Color(0.74, 0.79, 0.77))
+	grid.add_child(label)
+	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(input)
+
+
+func _add_meter(parent: VBoxContainer, key: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+
+	var label := Label.new()
+	label.text = key
+	label.custom_minimum_size = Vector2(76, 0)
+	label.add_theme_color_override("font_color", Color(0.7, 0.76, 0.74))
+	row.add_child(label)
+
+	var bar := ProgressBar.new()
+	bar.min_value = 0
+	bar.max_value = 100
+	bar.show_percentage = false
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(bar)
+	progress_bars[key] = bar
+
+	var value := Label.new()
+	value.custom_minimum_size = Vector2(58, 0)
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(value)
+	meter_labels[key] = value
+
+
+func _make_panel(title: String, expand: bool) -> PanelContainer:
 	var panel := PanelContainer.new()
+	if expand:
+		panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.125, 0.13, 0.135)
-	style.border_color = Color(0.28, 0.3, 0.31)
+	style.bg_color = Color(0.075, 0.09, 0.095, 0.88)
+	style.border_color = Color(0.48, 0.43, 0.28, 0.58)
 	style.set_border_width_all(1)
 	style.corner_radius_top_left = 6
 	style.corner_radius_top_right = 6
 	style.corner_radius_bottom_left = 6
 	style.corner_radius_bottom_right = 6
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
 	panel.add_theme_stylebox_override("panel", style)
 
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 7)
+	box.add_theme_constant_override("separation", 8)
 	panel.add_child(box)
 
 	var label := Label.new()
 	label.text = title
 	label.add_theme_font_size_override("font_size", 16)
-	label.add_theme_color_override("font_color", Color(0.9, 0.88, 0.8))
+	label.add_theme_color_override("font_color", Color(0.9, 0.84, 0.62))
 	box.add_child(label)
 	return panel
+
+
+func _make_button(text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.18, 0.22, 0.22, 0.95)
+	normal.border_color = Color(0.55, 0.48, 0.3, 0.75)
+	normal.set_border_width_all(1)
+	normal.corner_radius_top_left = 5
+	normal.corner_radius_top_right = 5
+	normal.corner_radius_bottom_left = 5
+	normal.corner_radius_bottom_right = 5
+	var hover := normal.duplicate()
+	hover.bg_color = Color(0.28, 0.31, 0.28, 0.98)
+	var pressed := normal.duplicate()
+	pressed.bg_color = Color(0.12, 0.15, 0.15, 1)
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_color_override("font_color", Color(0.92, 0.89, 0.76))
+	return button
 
 
 func _panel_body(panel: PanelContainer) -> VBoxContainer:
 	return panel.get_child(0) as VBoxContainer
 
 
-func _show_intro() -> void:
-	event_title.text = "选择灵根，进入残道时代"
-	event_body.text = "当前原型不包含战斗。你将通过回合抉择验证《道湮》的基础闭环：修炼会增长力量，也会留下污染、心魔与因果。\n\n每个重要行动都会推动NPC自行演化。NPC可能突破、结仇、堕化或死亡。你的目标不是刷满数值，而是在突破之前让自己的修炼体系仍然成立。"
-	for button in action_buttons.values():
-		button.disabled = true
-	breakthrough_button.disabled = true
-	restart_button.visible = false
-	_update_identity_preview()
-	_update_labels()
+func _show_create() -> void:
+	current_screen = ScreenState.CREATE
+	game_started = false
+	subtitle_label.text = "残道时代 · 修道者创建"
+	_set_screen_visibility()
+	_refresh_create_preview()
+
+
+func _show_profile() -> void:
+	current_screen = ScreenState.PROFILE
+	subtitle_label.text = "残道时代 · 人物设定"
+	_set_screen_visibility()
+
+
+func _show_game() -> void:
+	current_screen = ScreenState.GAME
+	subtitle_label.text = "残道时代 · 因果运转"
+	_set_screen_visibility()
+
+
+func _set_screen_visibility() -> void:
+	create_screen.visible = current_screen == ScreenState.CREATE
+	profile_screen.visible = current_screen == ScreenState.PROFILE
+	game_screen.visible = current_screen == ScreenState.GAME
+
+
+func _refresh_create_preview() -> void:
+	var root: Dictionary = ROOT_PRESETS[root_select.selected]
+	var origin: Dictionary = ORIGIN_PRESETS[origin_select.selected]
+	var path: Dictionary = PATH_PRESETS[path_select.selected]
+	var obsession: Dictionary = OBSESSION_PRESETS[obsession_select.selected]
+	var preview_name := _clean_character_name()
+	preview_title.text = "%s · %s" % [preview_name, root.name]
+	preview_body.text = "[b]出身[/b] %s\n%s\n\n[b]道途[/b] %s：%s\n\n[b]执念[/b] %s：%s\n\n[b]构筑倾向[/b] %s\n[b]灵根评估[/b] %s" % [
+		origin.name,
+		origin.text,
+		path.name,
+		path.text,
+		obsession.name,
+		obsession.text,
+		root.build,
+		root.text
+	]
+
+
+func _randomize_character() -> void:
+	var names := ["沈疏雨", "陆听尘", "许照微", "林烬", "秦问水", "顾青崖", "闻人砚"]
+	name_edit.text = names[rng.randi_range(0, names.size() - 1)]
+	gender_select.select(rng.randi_range(0, 2))
+	origin_select.select(rng.randi_range(0, ORIGIN_PRESETS.size() - 1))
+	root_select.select(rng.randi_range(0, ROOT_PRESETS.size() - 1))
+	path_select.select(rng.randi_range(0, PATH_PRESETS.size() - 1))
+	obsession_select.select(rng.randi_range(0, OBSESSION_PRESETS.size() - 1))
+	selected_origin_index = origin_select.selected
+	selected_root_index = root_select.selected
+	selected_path_index = path_select.selected
+	selected_obsession_index = obsession_select.selected
+	_refresh_create_preview()
+
+
+func _generate_profile() -> void:
+	selected_origin_index = origin_select.selected
+	selected_root_index = root_select.selected
+	selected_path_index = path_select.selected
+	selected_obsession_index = obsession_select.selected
+	character_name = _clean_character_name()
+	character_gender = gender_select.get_item_text(gender_select.selected)
+	character_origin = ORIGIN_PRESETS[selected_origin_index].duplicate(true)
+	character_path = PATH_PRESETS[selected_path_index].duplicate(true)
+	character_obsession = OBSESSION_PRESETS[selected_obsession_index].duplicate(true)
+	root_data = ROOT_PRESETS[selected_root_index].duplicate(true)
+	character_fate = _roll_fate(root_data.type)
+	character_sect = character_origin.get("sect_name", "玄微宗外门")
+	character_epitaph = _compose_character_epitaph()
+	_update_profile_screen()
+	_show_profile()
+
+
+func _clean_character_name() -> String:
+	var cleaned := name_edit.text.strip_edges()
+	if cleaned.is_empty():
+		return "无名修士"
+	return cleaned
+
+
+func _roll_fate(root_type: String) -> String:
+	var options: Array = FATE_BY_ROOT.get(root_type, ["残命", "道劫"])
+	return options[rng.randi_range(0, options.size() - 1)]
+
+
+func _compose_character_epitaph() -> String:
+	var sentence := ""
+	sentence += "%s出身于%s，身具%s。" % [character_name, character_origin.name, root_data.name]
+	sentence += "其道途偏向%s，执念为%s。" % [character_path.name, character_obsession.name]
+	sentence += "命格显%s之象，初入%s时，天道残缺的裂纹尚未完全显露。" % [character_fate, character_sect]
+	return sentence
+
+
+func _update_profile_screen() -> void:
+	profile_title.text = "%s · %s命格" % [character_name, character_fate]
+	profile_body.text = "[b]人物短传[/b]\n%s\n\n[b]出身[/b]\n%s\n\n[b]灵根[/b]\n%s · %s\n%s\n\n[b]道途[/b]\n%s\n\n[b]执念[/b]\n%s\n\n[b]初始因果[/b]\n%s、%s、%s" % [
+		character_epitaph,
+		character_origin.text,
+		root_data.name,
+		root_data.type,
+		root_data.text,
+		character_path.text,
+		character_obsession.text,
+		character_origin.state,
+		character_path.state,
+		character_obsession.state
+	]
+	var stat_preview := _get_initial_stat_preview()
+	profile_stats.text = "[b]初始评估[/b]\n修为 10 / 100\n悟性 %d\n稳定 %d\n潜力 %d\n风险 %d\n污染 %d\n因果 %d\n心魔 %d\n宗门信任 %d\n\n[b]建议构筑[/b]\n%s" % [
+		stat_preview.insight,
+		stat_preview.stability,
+		stat_preview.potential,
+		stat_preview.risk,
+		stat_preview.pollution,
+		stat_preview.karma,
+		stat_preview.heart,
+		stat_preview.sect,
+		_get_effective_build()
+	]
+
+
+func _get_initial_stat_preview() -> Dictionary:
+	return {
+		"insight": 5 + int(character_origin.get("insight", 0)) + int(character_path.get("insight", 0)),
+		"stability": clamp(int(root_data.stability) + int(character_origin.get("stability", 0)), 0, 100),
+		"potential": clamp(int(root_data.potential) + int(character_origin.get("potential", 0)), 0, 100),
+		"risk": clamp(int(root_data.risk) + int(character_origin.get("risk", 0)) + int(character_path.get("risk", 0)), 0, 100),
+		"pollution": int(character_origin.get("pollution", 0)),
+		"karma": int(character_origin.get("karma", 0)) + int(character_obsession.get("karma", 0)),
+		"heart": int(character_obsession.get("heart", 0)),
+		"sect": clamp(30 + int(character_origin.get("sect_trust", 0)), -50, 100)
+	}
+
+
+func _get_effective_build() -> String:
+	if character_path.has("build"):
+		return "%s / %s" % [root_data.build, character_path.build]
+	return root_data.build
 
 
 func _start_game() -> void:
-	selected_root_index = root_select.selected
-	root_data = ROOT_PRESETS[selected_root_index].duplicate(true)
+	if character_name.is_empty():
+		_generate_profile()
+		return
+	var initial := _get_initial_stat_preview()
 	game_started = true
 	turn = 1
 	realm_index = 0
 	cultivation = 10
-	insight = 5
-	stability = root_data.stability
-	potential = root_data.potential
-	risk = root_data.risk
-	pollution = 0
-	karma = 0
-	heart_demon = 0
+	insight = initial.insight
+	stability = initial.stability
+	potential = initial.potential
+	risk = initial.risk
+	pollution = initial.pollution
+	karma = initial.karma
+	heart_demon = initial.heart
 	heaven_correction = 0
-	sect_trust = 30
+	sect_trust = initial.sect
 	life_resonance = 0
 	relics.clear()
 	states.clear()
@@ -390,28 +859,24 @@ func _start_game() -> void:
 		"陆青梧": {"realm": "炼气", "path": "丹道", "state": "采药", "demon": 8, "alive": true},
 		"韩照夜": {"realm": "金丹", "path": "因果", "state": "追查灵墟", "demon": 26, "alive": true},
 	}
-	_add_log("你以%s入道，初定%s。" % [root_data.name, root_data.build])
 	_add_state("初入残道")
+	_add_state(root_data.state)
+	_add_state(character_origin.state)
+	_add_state(character_path.state)
+	_add_state(character_obsession.state)
+	_add_log("%s入%s，以%s立道。" % [character_name, character_sect, _get_effective_build()])
 	for button in action_buttons.values():
 		button.disabled = false
 	breakthrough_button.disabled = false
 	restart_button.visible = false
+	_show_game()
 	_present_turn()
 
 
-func _reset_to_intro() -> void:
+func _reset_to_profile() -> void:
 	game_started = false
-	root_data.clear()
-	_show_intro()
-
-
-func _update_identity_preview() -> void:
-	var preset = ROOT_PRESETS[root_select.selected]
-	turn_label.text = "回合：未入道"
-	realm_label.text = "境界：炼气"
-	root_label.text = "灵根：%s" % preset.name
-	build_label.text = "构筑倾向：%s" % preset.build
-	doctrine_label.text = "灵根评估：%s" % preset.text
+	_update_profile_screen()
+	_show_profile()
 
 
 func _present_turn() -> void:
@@ -425,7 +890,7 @@ func _present_turn() -> void:
 func _compose_turn_text() -> String:
 	var text := ""
 	text += "[b]天道残响[/b]\n"
-	text += "灵气仍可运转，但每一次借用都会改变你与世界的关系。\n\n"
+	text += "%s的灵气仍可运转，但每一次借用都会改变自身与世界的关系。\n\n" % character_name
 	text += "[b]当前判断[/b]\n"
 	text += "- 修为达到100可尝试突破。\n"
 	text += "- 污染、因果、心魔与天道修正越高，突破越危险。\n"
@@ -465,18 +930,18 @@ func _action_cultivate() -> void:
 		_add_log("闭关时五行相冲，经脉出现逆流。")
 	else:
 		stability += rng.randi_range(1, 4)
-		_add_log("你完成一次周天运转，修为增长%d。" % gain)
+		_add_log("完成一次周天运转，修为增长%d。" % gain)
 	_clamp_core()
 
 
 func _action_sect() -> void:
-	var roll := rng.randi_range(1, 100)
+	var roll: int = rng.randi_range(1, 100)
 	sect_trust += rng.randi_range(6, 13)
 	karma += rng.randi_range(3, 9)
 	insight += rng.randi_range(2, 5)
 	if roll < 35:
 		_add_state("宗门债")
-		_add_log("你替宗门接下一桩旧债，因果缠身。")
+		_add_log("替%s接下一桩旧债，因果缠身。" % character_sect)
 	elif roll < 70:
 		stability += rng.randi_range(3, 8)
 		_add_log("长老指点功法冲突，体系稍稳。")
@@ -484,52 +949,52 @@ func _action_sect() -> void:
 		sect_trust -= rng.randi_range(8, 15)
 		karma += rng.randi_range(8, 14)
 		_add_state("派系疑云")
-		_add_log("你卷入长老派系争执，宗门信任开始摇晃。")
+		_add_log("卷入长老派系争执，宗门信任开始摇晃。")
 	_clamp_core()
 
 
 func _action_ruin() -> void:
-	var gain := rng.randi_range(8, 18)
+	var gain: int = rng.randi_range(8, 18)
 	cultivation += gain
 	insight += rng.randi_range(4, 10)
 	pollution += rng.randi_range(8, 16)
 	karma += rng.randi_range(4, 12)
 	heaven_correction += rng.randi_range(4, 9)
-	var roll := rng.randi_range(1, 100)
+	var roll: int = rng.randi_range(1, 100)
 	if roll < 35:
 		var relic := _random_relic()
 		if not relics.has(relic):
 			relics.append(relic)
 		potential += rng.randi_range(3, 8)
-		_add_log("灵墟时间残响中，你取得遗物：%s。" % relic)
+		_add_log("灵墟时间残响中取得遗物：%s。" % relic)
 	elif roll < 65:
 		_add_state("灵墟污染")
 		stability -= rng.randi_range(5, 13)
-		_add_log("灵墟内五行逆转，你的灵根被污染。")
+		_add_log("灵墟内五行逆转，灵根被污染。")
 	else:
 		life_resonance += 1
 		_add_state("古代真相碎片")
-		_add_log("你看见湮灭时代的残缺记忆，但无法确认其真伪。")
+		_add_log("看见湮灭时代的残缺记忆，但无法确认其真伪。")
 	_clamp_core()
 
 
 func _action_demon() -> void:
-	var roll := rng.randi_range(1, 100)
+	var roll: int = rng.randi_range(1, 100)
 	if roll + insight > 82:
 		heart_demon = max(0, heart_demon - rng.randi_range(8, 16))
 		insight += rng.randi_range(3, 7)
-		_add_log("你观照执念，暂时压下心魔。")
+		_add_log("观照执念，暂时压下心魔。")
 	elif roll > 45:
 		heart_demon += rng.randi_range(5, 12)
 		cultivation += rng.randi_range(8, 15)
 		potential += rng.randi_range(2, 6)
 		_add_state("心魔借力")
-		_add_log("你借用心魔之力，修为暴涨，但自我边界变得模糊。")
+		_add_log("借用心魔之力，修为暴涨，但自我边界变得模糊。")
 	else:
 		heart_demon += rng.randi_range(10, 20)
 		stability -= rng.randi_range(6, 14)
 		_add_state("心魔低语")
-		_add_log("心魔模拟故人记忆，你的道心出现裂纹。")
+		_add_log("心魔模拟故人记忆，道心出现裂纹。")
 	heaven_correction += rng.randi_range(2, 6)
 	_clamp_core()
 
@@ -544,7 +1009,7 @@ func _attempt_breakthrough() -> void:
 		_update_labels()
 		if not _check_game_over():
 			event_title.text = "突破失败"
-			event_body.text = "你的周天尚未圆满。残缺天道没有回应，只有经脉中的滞涩感逐渐扩大。"
+			event_body.text = "周天尚未圆满。残缺天道没有回应，只有经脉中的滞涩感逐渐扩大。"
 		return
 
 	var pressure: int = pollution + karma + heart_demon + heaven_correction + risk - stability - int(insight * 0.45)
@@ -559,18 +1024,18 @@ func _attempt_breakthrough() -> void:
 		karma += rng.randi_range(5, 12)
 		heart_demon += rng.randi_range(2, 8)
 		_add_state("%s破境" % old_realm)
-		_add_log("你突破至%s，生命形态开始偏离凡俗。" % REALMS[realm_index])
+		_add_log("突破至%s，生命形态开始偏离凡俗。" % REALMS[realm_index])
 		event_title.text = "破境成功"
 		event_body.text = "天道修正没有放过你。突破带来新的上限，也让你的因果重量明显增加。"
 	else:
-		var damage := rng.randi_range(16, 30)
+		var damage: int = rng.randi_range(16, 30)
 		stability -= damage
 		heart_demon += rng.randi_range(10, 22)
 		pollution += rng.randi_range(6, 14)
 		_add_state("道基受损")
 		_add_log("突破失败，道基受损%d，心魔趁隙而入。" % damage)
 		event_title.text = "突破失败"
-		event_body.text = "这不是数值不足的失败，而是你的修炼体系无法承受自身因果。"
+		event_body.text = "这不是数值不足的失败，而是修炼体系无法承受自身因果。"
 	_clamp_core()
 	_update_labels()
 	_check_game_over()
@@ -578,10 +1043,10 @@ func _attempt_breakthrough() -> void:
 
 func _advance_world() -> void:
 	for npc_name in npc_states.keys():
-		var npc = npc_states[npc_name]
+		var npc: Dictionary = npc_states[npc_name]
 		if not npc.alive:
 			continue
-		var roll := rng.randi_range(1, 100)
+		var roll: int = rng.randi_range(1, 100)
 		npc.demon += rng.randi_range(0, 4)
 		if roll < 9 and npc.demon > 30:
 			npc.state = "心魔侵蚀"
@@ -602,7 +1067,7 @@ func _advance_world() -> void:
 
 	if pollution > 45 and not states.has("浊灵入脉"):
 		_add_state("浊灵入脉")
-		_add_log("浊灵气开始影响你的经脉。")
+		_add_log("浊灵气开始影响经脉。")
 	if karma > 50 and not states.has("因果缠身"):
 		_add_state("因果缠身")
 		_add_log("旧因未结，新果已生。")
@@ -618,7 +1083,7 @@ func _check_game_over() -> bool:
 	var ending := ""
 	if stability <= 0:
 		ended = true
-		ending = "你的五行循环彻底崩坏，道基化为残响。"
+		ending = "五行循环彻底崩坏，道基化为残响。"
 	elif heart_demon >= 100:
 		ended = true
 		ending = "心魔吞没自我。你仍在行走，但已经不再完全是你。"
@@ -635,7 +1100,7 @@ func _check_game_over() -> bool:
 		breakthrough_button.disabled = true
 		restart_button.visible = true
 		event_title.text = "本轮因果结算"
-		event_body.text = "%s\n\n死亡不是结束。若继续原型，下一轮可把这些状态作为残响继承：%s" % [ending, _format_state_inline()]
+		event_body.text = "%s\n\n死亡不是结束。下一轮可把这些状态作为残响继承：%s" % [ending, _format_state_inline()]
 		_add_log("本轮结束：%s" % ending)
 		_update_labels()
 	return ended
@@ -671,40 +1136,34 @@ func _clamp_core() -> void:
 
 
 func _update_labels() -> void:
-	if not game_started:
-		meter_labels["修为"].text = "0 / 100"
-		meter_labels["悟性"].text = "0"
-		meter_labels["稳定"].text = str(ROOT_PRESETS[root_select.selected].stability)
-		meter_labels["潜力"].text = str(ROOT_PRESETS[root_select.selected].potential)
-		meter_labels["风险"].text = str(ROOT_PRESETS[root_select.selected].risk)
-		for key in ["污染", "因果", "心魔", "天道修正"]:
-			meter_labels[key].text = "0"
-		meter_labels["宗门信任"].text = "未入宗"
-		state_box.text = "尚无因果。"
-		npc_box.text = "入道后，重要NPC会自行推进。"
-		log_box.text = "等待入道。"
-		return
-
+	character_label.text = "%s · %s · %s" % [character_name, character_gender, character_fate]
 	turn_label.text = "回合：%d" % turn
 	realm_label.text = "境界：%s" % REALMS[realm_index]
 	root_label.text = "灵根：%s · %s" % [root_data.name, root_data.type]
-	build_label.text = "构筑倾向：%s" % root_data.build
-	doctrine_label.text = "五行：%s\n%s" % [_format_elements(), root_data.text]
+	build_label.text = "构筑：%s" % _get_effective_build()
+	doctrine_label.text = "宗门：%s\n出身：%s\n五行：%s" % [character_sect, character_origin.name, _format_elements()]
 
-	meter_labels["修为"].text = "%d / 100" % cultivation
-	meter_labels["悟性"].text = str(insight)
-	meter_labels["稳定"].text = str(stability)
-	meter_labels["潜力"].text = str(potential)
-	meter_labels["风险"].text = str(risk)
-	meter_labels["污染"].text = str(pollution)
-	meter_labels["因果"].text = str(karma)
-	meter_labels["心魔"].text = str(heart_demon)
-	meter_labels["天道修正"].text = str(heaven_correction)
-	meter_labels["宗门信任"].text = str(sect_trust)
+	_set_meter("修为", cultivation, 100, "%d / 100" % cultivation)
+	_set_meter("悟性", insight, 100, str(insight))
+	_set_meter("稳定", stability, 100, str(stability))
+	_set_meter("潜力", potential, 100, str(potential))
+	_set_meter("风险", risk, 100, str(risk))
+	_set_meter("污染", pollution, 100, str(pollution))
+	_set_meter("因果", karma, 100, str(karma))
+	_set_meter("心魔", heart_demon, 100, str(heart_demon))
+	_set_meter("天道修正", heaven_correction, 100, str(heaven_correction))
+	_set_meter("宗门信任", sect_trust + 50, 150, str(sect_trust))
 
 	state_box.text = _format_states()
 	npc_box.text = _format_npcs()
 	log_box.text = _format_logs()
+
+
+func _set_meter(key: String, value: int, max_value: int, display: String) -> void:
+	var bar: ProgressBar = progress_bars[key]
+	bar.max_value = max_value
+	bar.value = clamp(value, 0, max_value)
+	meter_labels[key].text = display
 
 
 func _format_elements() -> String:
@@ -723,7 +1182,7 @@ func _format_states() -> String:
 	for state in states:
 		lines.append("- %s" % state)
 	if not relics.is_empty():
-		lines.append("\n遗物：%s" % "、".join(relics))
+		lines.append("\n[b]遗物[/b]：%s" % "、".join(relics))
 	return "\n".join(lines)
 
 
@@ -736,7 +1195,7 @@ func _format_state_inline() -> String:
 func _format_npcs() -> String:
 	var lines: Array[String] = []
 	for npc_name in npc_states.keys():
-		var npc = npc_states[npc_name]
+		var npc: Dictionary = npc_states[npc_name]
 		var alive_text := "存活" if npc.alive else "陨落"
 		lines.append("[b]%s[/b] · %s · %s\n%s / 心魔%d / %s" % [
 			npc_name,

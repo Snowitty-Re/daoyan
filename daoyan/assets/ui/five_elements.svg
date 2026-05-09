@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160">
+  <rect width="640" height="160" fill="none"/>
+  <g font-family="serif" font-size="38" font-weight="700" text-anchor="middle">
+    <circle cx="80" cy="80" r="48" fill="#9ea7a8" opacity="0.22" stroke="#c7d0cf" stroke-width="2"/>
+    <text x="80" y="94" fill="#d8dddc">金</text>
+    <circle cx="200" cy="80" r="48" fill="#5f8f69" opacity="0.22" stroke="#8dbb91" stroke-width="2"/>
+    <text x="200" y="94" fill="#cce5c7">木</text>
+    <circle cx="320" cy="80" r="48" fill="#557f95" opacity="0.22" stroke="#83b7c8" stroke-width="2"/>
+    <text x="320" y="94" fill="#cbe7ef">水</text>
+    <circle cx="440" cy="80" r="48" fill="#9b5749" opacity="0.22" stroke="#cc7d65" stroke-width="2"/>
+    <text x="440" y="94" fill="#f1c5b3">火</text>
+    <circle cx="560" cy="80" r="48" fill="#978053" opacity="0.22" stroke="#c8b476" stroke-width="2"/>
+    <text x="560" y="94" fill="#eadba3">土</text>
+  </g>
+</svg>

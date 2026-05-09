@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="640" viewBox="0 0 512 640">
+  <defs>
+    <linearGradient id="robe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#314349"/>
+      <stop offset="0.5" stop-color="#12191d"/>
+      <stop offset="1" stop-color="#2b241d"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="35%" r="55%">
+      <stop offset="0" stop-color="#d4c184" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#d4c184" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="640" fill="none"/>
+  <circle cx="256" cy="222" r="190" fill="url(#halo)"/>
+  <path d="M255 90 C224 92 202 114 205 147 C207 178 226 197 256 198 C286 197 306 176 307 146 C308 115 287 92 255 90 Z" fill="#14191b"/>
+  <path d="M171 251 C198 211 222 196 255 196 C289 196 316 214 341 253 C378 310 408 438 424 602 H88 C105 434 132 309 171 251 Z" fill="url(#robe)"/>
+  <path d="M207 225 C231 255 281 255 305 225 C291 308 290 408 307 602 H205 C222 407 221 307 207 225 Z" fill="#1d2527" opacity="0.9"/>
+  <path d="M164 281 C109 332 75 409 62 536 C88 508 113 498 138 507 C145 414 163 347 194 294 Z" fill="#182125"/>
+  <path d="M348 282 C404 332 437 410 450 536 C424 508 399 498 374 507 C367 414 349 347 318 294 Z" fill="#182125"/>
+  <path d="M176 602 C202 540 218 465 224 378" fill="none" stroke="#bcae76" stroke-width="4" opacity="0.35"/>
+  <path d="M336 602 C310 540 294 465 288 378" fill="none" stroke="#7aa6a6" stroke-width="4" opacity="0.28"/>
+  <g fill="none" stroke="#d3c488" stroke-width="2" opacity="0.5">
+    <circle cx="256" cy="356" r="58"/>
+    <path d="M198 356 H314"/>
+    <path d="M256 298 V414"/>
+  </g>
+</svg>
