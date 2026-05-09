@@ -176,12 +176,12 @@ const ACTIONS := {
 }
 
 const BATTLE_ACTIONS := {
-	"metal": {"name": "金 · 飞剑锐化", "element": "金", "power": 20, "cost": 4, "risk": 3, "text": "高频穿透，适合破开灵壳。"},
-	"wood": {"name": "木 · 灵种缠生", "element": "木", "power": 14, "cost": -3, "risk": 2, "text": "恢复道基并累积牵制。"},
-	"water": {"name": "水 · 回流观照", "element": "水", "power": 12, "cost": 0, "risk": 1, "text": "降低敌方灵压，梳理自身循环。"},
-	"fire": {"name": "火 · 焚气转化", "element": "火", "power": 26, "cost": 8, "risk": 8, "text": "爆发极高，明显推高心魔与污染。"},
-	"earth": {"name": "土 · 镇域守形", "element": "土", "power": 10, "cost": -6, "risk": 1, "text": "稳定道基，压低本回合承伤。"},
-	"demon": {"name": "心魔借力", "element": "心魔", "power": 34, "cost": 12, "risk": 14, "text": "以执念换强行破局，代价会带回现实。"}
+	"metal": {"name": "金 · 飞剑锐化", "element": "金", "power": 22.0, "qi": 16.0, "cooldown": 1.6, "heat": 4.0, "text": "高频穿透，连续使用会形成剑气锐化。"},
+	"wood": {"name": "木 · 灵种缠生", "element": "木", "power": 8.0, "qi": 14.0, "cooldown": 2.2, "heat": -3.0, "text": "种下灵种，持续修复道基并牵制敌方灵压。"},
+	"water": {"name": "水 · 回流观照", "element": "水", "power": 7.0, "qi": 12.0, "cooldown": 1.8, "heat": -6.0, "text": "梳理循环，压低灵压，并让下一次金系飞剑回流。"},
+	"fire": {"name": "火 · 焚气转化", "element": "火", "power": 34.0, "qi": 18.0, "cooldown": 2.8, "heat": 16.0, "text": "高爆发转化，若木种存在会引爆增殖。"},
+	"earth": {"name": "土 · 镇域守形", "element": "土", "power": 5.0, "qi": 15.0, "cooldown": 2.4, "heat": -4.0, "text": "临时建立领域，承载敌方灵压，保护道基。"},
+	"demon": {"name": "心魔借力", "element": "心魔", "power": 42.0, "qi": 0.0, "cooldown": 5.0, "heat": 22.0, "text": "以执念强行撕开敌方结构，代价直接进入心魔。"}
 }
 
 const ENCOUNTERS := [
@@ -256,12 +256,20 @@ var npc_states := {}
 var root_data := {}
 var battle_active := false
 var battle_turn := 1
+var battle_time := 0.0
 var battle_enemy := {}
-var enemy_hp := 0
-var enemy_max_hp := 0
-var enemy_pressure := 0
-var player_guard := 0
-var battle_resonance := 0
+var enemy_structure := 0.0
+var enemy_max_structure := 0.0
+var enemy_pressure := 0.0
+var player_guard := 0.0
+var battle_heat := 0.0
+var battle_instability := 0.0
+var battle_resonance := 0.0
+var battle_stability_debt := 0.0
+var battle_qi := {}
+var battle_cooldowns := {}
+var battle_tags: Array[String] = []
+var battle_result_pending := false
 
 var create_screen: Control
 var profile_screen: Control
@@ -305,8 +313,11 @@ var battle_enemy_label: Label
 var battle_enemy_bar: ProgressBar
 var battle_pressure_bar: ProgressBar
 var battle_player_bar: ProgressBar
+var battle_heat_bar: ProgressBar
+var battle_instability_bar: ProgressBar
 var battle_log_box: RichTextLabel
 var battle_buttons := {}
+var battle_qi_bars := {}
 var leave_battle_button: Button
 
 
@@ -314,6 +325,11 @@ func _ready() -> void:
 	rng.randomize()
 	_build_ui()
 	_show_create()
+
+
+func _process(delta: float) -> void:
+	if battle_active:
+		_tick_battle(delta)
 
 
 func _build_ui() -> void:
@@ -702,10 +718,9 @@ func _build_battle_screen() -> Control:
 	battle_enemy_label.add_theme_color_override("font_color", Color(0.94, 0.82, 0.64))
 	battle_enemy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	enemy_body.add_child(battle_enemy_label)
-	battle_enemy_bar = _make_bar("形体")
-	enemy_body.add_child(battle_enemy_bar)
-	battle_pressure_bar = _make_bar("灵压")
-	enemy_body.add_child(battle_pressure_bar)
+	battle_enemy_bar = _make_labeled_bar(enemy_body, "结构")
+	battle_pressure_bar = _make_labeled_bar(enemy_body, "灵压")
+	battle_instability_bar = _make_labeled_bar(enemy_body, "裂隙")
 
 	var field_panel := _make_panel("灵墟战场", true)
 	field_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -746,13 +761,16 @@ func _build_battle_screen() -> Control:
 	var player_panel := _make_panel("自身道基", false)
 	right.add_child(player_panel)
 	var player_body := _panel_body(player_panel)
-	battle_player_bar = _make_bar("稳定")
-	player_body.add_child(battle_player_bar)
+	battle_player_bar = _make_labeled_bar(player_body, "稳定")
+	battle_heat_bar = _make_labeled_bar(player_body, "失衡")
+	for element in ELEMENTS:
+		var qi_bar := _make_labeled_bar(player_body, element)
+		battle_qi_bars[element] = qi_bar
 	var hint := RichTextLabel.new()
 	hint.bbcode_enabled = true
 	hint.fit_content = true
 	hint.scroll_active = false
-	hint.text = "[b]战斗原则[/b]\n不是技能循环，而是构筑是否成立。\n\n弱点会提高破坏，抗性会降低效果；每次出手都会牵动污染、心魔或道基。"
+	hint.text = "[b]战斗原则[/b]\n战场实时推进。灵气按灵根持续流入五行池，敌方灵压持续压迫道基。\n\n按术式按钮消耗对应灵气；连续同系、相生组合和心魔借力都会改变战局与代价。"
 	player_body.add_child(hint)
 
 	var log_panel := _make_panel("战斗残响", true)
@@ -766,8 +784,24 @@ func _build_battle_screen() -> Control:
 	return screen
 
 
+func _make_labeled_bar(parent: VBoxContainer, label_text: String) -> ProgressBar:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var label := Label.new()
+	label.text = label_text
+	label.custom_minimum_size = Vector2(54, 0)
+	label.add_theme_color_override("font_color", Color(0.7, 0.76, 0.74))
+	row.add_child(label)
+	var bar := _make_bar(label_text)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(bar)
+	return bar
+
+
 func _make_bar(_label_text: String) -> ProgressBar:
 	var bar := ProgressBar.new()
+	bar.tooltip_text = _label_text
 	bar.min_value = 0
 	bar.max_value = 100
 	bar.show_percentage = true
@@ -1191,13 +1225,25 @@ func _action_demon() -> void:
 func _start_battle() -> void:
 	battle_active = true
 	battle_turn = 1
+	battle_time = 0.0
+	battle_result_pending = false
 	battle_logs.clear()
 	battle_enemy = ENCOUNTERS[rng.randi_range(0, ENCOUNTERS.size() - 1)].duplicate(true)
-	enemy_max_hp = int(battle_enemy.hp) + int(realm_index * 14)
-	enemy_hp = enemy_max_hp
-	enemy_pressure = int(battle_enemy.pressure) + int(realm_index * 4) + int(pollution * 0.08)
-	player_guard = 0
-	battle_resonance = 0
+	enemy_max_structure = float(battle_enemy.hp) + float(realm_index * 14)
+	enemy_structure = enemy_max_structure
+	enemy_pressure = float(battle_enemy.pressure) + float(realm_index * 4) + float(pollution * 0.08)
+	player_guard = 0.0
+	battle_heat = float(risk) * 0.15
+	battle_instability = 0.0
+	battle_resonance = 0.0
+	battle_stability_debt = 0.0
+	battle_tags.clear()
+	battle_qi.clear()
+	battle_cooldowns.clear()
+	for element in ELEMENTS:
+		battle_qi[element] = 18.0 + float(root_data.elements.get(element, 0)) * 0.18
+	for action_id in BATTLE_ACTIONS.keys():
+		battle_cooldowns[action_id] = 0.0
 	for button in battle_buttons.values():
 		button.disabled = false
 	leave_battle_button.text = "脱离战场"
@@ -1212,70 +1258,129 @@ func _battle_action(action_id: String) -> void:
 		return
 	var action: Dictionary = BATTLE_ACTIONS[action_id]
 	var element: String = action.element
+	if float(battle_cooldowns.get(action_id, 0.0)) > 0.0:
+		_add_battle_log("%s尚未回转。" % action.name)
+		return
+	if element != "心魔" and float(battle_qi.get(element, 0.0)) < float(action.qi):
+		_add_battle_log("%s不足，%s无法成式。" % [element, action.name])
+		return
+	if element != "心魔":
+		battle_qi[element] = float(battle_qi[element]) - float(action.qi)
 	var affinity: int = _element_affinity(element)
-	var damage: int = int(action.power) + int(affinity * 0.18) + int(insight * 0.12) + rng.randi_range(-4, 6)
+	var damage: float = float(action.power) + float(affinity) * 0.12 + float(insight) * 0.08
 	if element == String(battle_enemy.weak):
-		damage = int(damage * 1.35)
-		battle_resonance += 2
+		damage *= 1.35
+		battle_resonance += 6.0
 		_add_battle_log("%s击中弱点，敌方灵气结构松动。" % action.name)
 	elif element == String(battle_enemy.resist):
-		damage = int(damage * 0.62)
+		damage *= 0.62
 		_add_battle_log("%s被敌方灵性抵消。" % action.name)
 	else:
 		_add_battle_log("施展%s。" % action.name)
 
+	damage = _apply_battle_synergy(action_id, element, damage)
+
 	match action_id:
 		"wood":
-			stability += rng.randi_range(3, 7)
-			enemy_pressure -= 2
+			stability += 2
+			enemy_pressure -= 4.0
+			_add_battle_tag("灵种")
 		"water":
-			enemy_pressure -= rng.randi_range(5, 10)
-			heart_demon = max(0, heart_demon - rng.randi_range(1, 4))
+			enemy_pressure -= 8.0
+			battle_heat = max(0.0, battle_heat - 8.0)
+			_add_battle_tag("回流")
 		"fire":
-			pollution += rng.randi_range(3, 7)
-			heart_demon += rng.randi_range(2, 5)
+			pollution += 1
+			heart_demon += 1
+			battle_heat += 12.0
 		"earth":
-			player_guard += rng.randi_range(9, 16)
-			stability += rng.randi_range(2, 5)
+			player_guard += 22.0
+			stability += 1
+			_add_battle_tag("镇域")
 		"demon":
-			heart_demon += rng.randi_range(8, 14)
-			karma += rng.randi_range(2, 6)
+			heart_demon += 6
+			karma += 2
+			battle_heat += 18.0
 			_add_state("战中借魔")
 
-	enemy_hp -= max(1, damage)
-	stability -= max(0, int(action.cost))
-	risk += max(0, int(action.risk / 4))
-	enemy_pressure = clamp(enemy_pressure, 0, 100)
-	_add_battle_log("造成%d点结构破坏。" % max(1, damage))
+	enemy_structure -= max(1.0, damage)
+	battle_heat += float(action.heat)
+	battle_instability += max(0.0, battle_heat - 70.0) * 0.04
+	battle_cooldowns[action_id] = float(action.cooldown)
+	enemy_pressure = clamp(enemy_pressure, 0.0, 100.0)
+	_add_battle_log("造成%d点结构破坏。" % int(max(1.0, damage)))
 
-	if enemy_hp <= 0:
+	if enemy_structure <= 0.0:
 		_finish_battle(true)
 		return
 
-	_enemy_counter()
-	battle_turn += 1
 	_clamp_core()
-	if _check_game_over():
-		battle_active = false
-		return
 	_update_battle_ui()
 
 
-func _enemy_counter() -> void:
-	var pressure_hit: int = enemy_pressure + rng.randi_range(4, 14) - player_guard
-	player_guard = max(0, player_guard - 8)
-	if pressure_hit <= 0:
-		_add_battle_log("土行守形抵住敌方灵压。")
+func _tick_battle(delta: float) -> void:
+	battle_time += delta
+	var scaled_delta := delta
+	for element in ELEMENTS:
+		var affinity := float(root_data.elements.get(element, 0))
+		var flow := 4.0 + affinity * 0.045 + float(insight) * 0.01
+		battle_qi[element] = clamp(float(battle_qi.get(element, 0.0)) + flow * scaled_delta, 0.0, 100.0)
+	for action_id in battle_cooldowns.keys():
+		battle_cooldowns[action_id] = max(0.0, float(battle_cooldowns[action_id]) - scaled_delta)
+
+	var pressure_growth: float = (2.0 + float(realm_index) * 0.35 + float(pollution) * 0.012) * scaled_delta
+	enemy_pressure = clamp(enemy_pressure + pressure_growth, 0.0, 100.0)
+	var guard_absorb: float = player_guard * 0.45
+	var pressure_damage: float = max(0.0, enemy_pressure - guard_absorb) * 0.035 * scaled_delta
+	var heat_damage: float = max(0.0, battle_heat - 65.0) * 0.018 * scaled_delta
+	battle_stability_debt += (pressure_damage + heat_damage) * 10.0
+	if battle_stability_debt >= 1.0:
+		var loss: int = int(battle_stability_debt)
+		stability -= loss
+		battle_stability_debt -= float(loss)
+	battle_instability += (pressure_damage + heat_damage) * 5.0
+	player_guard = max(0.0, player_guard - 10.0 * scaled_delta)
+	battle_heat = max(0.0, battle_heat - (3.0 + float(stability) * 0.02) * scaled_delta)
+	if battle_time >= float(battle_turn) * 4.0:
+		battle_turn += 1
+		heaven_correction += 1
+		if battle_instability > 45.0:
+			pollution += 1
+		_add_battle_log("%s灵压继续逼近，道基承压。" % battle_enemy.name)
+	if battle_instability >= 100.0 or stability <= 0:
+		_finish_battle(false)
 		return
-	var stability_loss: int = max(2, int(pressure_hit * 0.28))
-	var pollution_gain: int = max(0, int(pressure_hit * 0.08))
-	stability -= stability_loss
-	pollution += pollution_gain
-	heaven_correction += rng.randi_range(1, 4)
-	_add_battle_log("%s反噬，道基受损%d。" % [battle_enemy.name, stability_loss])
+	_clamp_core()
+	_update_battle_ui()
+
+
+func _apply_battle_synergy(action_id: String, element: String, damage: float) -> float:
+	if action_id == "fire" and battle_tags.has("灵种"):
+		damage *= 1.45
+		battle_tags.erase("灵种")
+		_add_battle_log("木火相燃，灵种爆裂。")
+	if action_id == "metal" and battle_tags.has("回流"):
+		damage *= 1.28
+		battle_tags.erase("回流")
+		_add_battle_log("金水回流，剑气二次贯穿。")
+	if action_id == "earth" and battle_tags.has("回流"):
+		player_guard += 10.0
+		battle_tags.erase("回流")
+		_add_battle_log("水土成域，战场流速变慢。")
+	if element != "心魔" and battle_tags.has(element):
+		damage *= 1.12
+	return damage
+
+
+func _add_battle_tag(tag: String) -> void:
+	if not battle_tags.has(tag):
+		battle_tags.append(tag)
 
 
 func _finish_battle(victory: bool) -> void:
+	if battle_result_pending:
+		return
+	battle_result_pending = true
 	battle_active = false
 	for button in battle_buttons.values():
 		button.disabled = true
@@ -1285,13 +1390,13 @@ func _finish_battle(victory: bool) -> void:
 		var reward: String = battle_enemy.reward
 		if not relics.has(reward):
 			relics.append(reward)
-		cultivation += rng.randi_range(10, 18)
+		cultivation += rng.randi_range(12, 22)
 		insight += rng.randi_range(2, 6)
 		karma += rng.randi_range(4, 9)
 		heaven_correction += rng.randi_range(3, 7)
 		_add_state("战胜%s" % battle_enemy.name)
-		_add_log("战胜%s，取得%s。" % [battle_enemy.name, reward])
-		_add_battle_log("敌方灵气结构崩解，因果回流。")
+		_add_log("打碎%s的灵气结构，取得%s。" % [battle_enemy.name, reward])
+		_add_battle_log("敌方灵气结构崩解，因果回流。战斗耗时%.1f息。" % battle_time)
 	else:
 		stability -= rng.randi_range(8, 15)
 		pollution += rng.randi_range(6, 12)
@@ -1312,6 +1417,7 @@ func _flee_battle() -> void:
 	for button in battle_buttons.values():
 		button.disabled = false
 	leave_battle_button.text = "脱离战场"
+	battle_result_pending = false
 	_show_game()
 	_present_turn()
 
@@ -1331,7 +1437,7 @@ func _add_battle_log(line: String) -> void:
 
 
 func _update_battle_ui() -> void:
-	battle_title.text = "第%d合：%s" % [battle_turn, battle_enemy.name]
+	battle_title.text = "%.1f息：%s" % [battle_time, battle_enemy.name]
 	battle_enemy_label.text = "%s · %s\n主性：%s / 弱点：%s / 抗性：%s" % [
 		battle_enemy.name,
 		battle_enemy.realm,
@@ -1339,16 +1445,38 @@ func _update_battle_ui() -> void:
 		battle_enemy.weak,
 		battle_enemy.resist
 	]
-	battle_enemy_bar.max_value = enemy_max_hp
-	battle_enemy_bar.value = clamp(enemy_hp, 0, enemy_max_hp)
+	battle_enemy_bar.max_value = enemy_max_structure
+	battle_enemy_bar.value = clamp(enemy_structure, 0.0, enemy_max_structure)
 	battle_pressure_bar.max_value = 100
-	battle_pressure_bar.value = clamp(enemy_pressure, 0, 100)
+	battle_pressure_bar.value = clamp(enemy_pressure, 0.0, 100.0)
+	battle_instability_bar.max_value = 100
+	battle_instability_bar.value = clamp(battle_instability, 0.0, 100.0)
 	battle_player_bar.max_value = 100
 	battle_player_bar.value = clamp(stability, 0, 100)
-	battle_body.text = "[b]战场判断[/b]\n%s\n\n[b]自身构筑[/b]\n%s\n五行：%s\n\n[b]当前代价[/b]\n污染%d / 因果%d / 心魔%d / 天道修正%d\n\n[b]操作提示[/b]\n用敌方弱点提高结构破坏；用木、水、土维持体系；心魔借力能强行破局，但会把代价带回现实。" % [
+	battle_heat_bar.max_value = 100
+	battle_heat_bar.value = clamp(battle_heat, 0.0, 100.0)
+	for element in ELEMENTS:
+		var bar: ProgressBar = battle_qi_bars[element]
+		bar.max_value = 100
+		bar.value = clamp(float(battle_qi.get(element, 0.0)), 0.0, 100.0)
+	for action_id in battle_buttons.keys():
+		var button: Button = battle_buttons[action_id]
+		var action: Dictionary = BATTLE_ACTIONS[action_id]
+		var ready: bool = float(battle_cooldowns.get(action_id, 0.0)) <= 0.0
+		var enough_qi: bool = action.element == "心魔" or float(battle_qi.get(action.element, 0.0)) >= float(action.qi)
+		button.disabled = battle_result_pending or not battle_active or not ready or not enough_qi
+		if not ready:
+			button.text = "%s %.1f" % [action.name, float(battle_cooldowns[action_id])]
+		else:
+			button.text = action.name
+	battle_body.text = "[b]战场判断[/b]\n%s\n\n[b]自身构筑[/b]\n%s\n五行：%s\n\n[b]战斗状态[/b]\n守势 %.0f / 热度 %.0f / 裂隙 %.0f\n标记：%s\n\n[b]当前代价[/b]\n污染%d / 因果%d / 心魔%d / 天道修正%d\n\n[b]操作提示[/b]\n灵气自动流入五行池。木火、金水、水土会产生联动；高热度会撕裂道基，心魔借力会把代价带回现实。" % [
 		battle_enemy.text,
 		_get_effective_build(),
 		_format_elements(),
+		player_guard,
+		battle_heat,
+		battle_instability,
+		"、".join(battle_tags) if not battle_tags.is_empty() else "无",
 		pollution,
 		karma,
 		heart_demon,
